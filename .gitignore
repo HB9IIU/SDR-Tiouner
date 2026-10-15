@@ -1,0 +1,21 @@
+# build output and packages
+build/
+build-windows/
+*.zip
+*.exe
+*.dll
+!third_party/radio-libs/*.dll
+# the 210 MB runtime of the Windows package (see runtime/README.md)
+runtime/windows-base/
+# keys and certificates must never be committed
+*.key
+*.crt
+*.pem
+# editor and python droppings
+__pycache__/
+*.pyc
+.vscode/
+*.log
+
+# local recovery snapshots
+.local-backups/

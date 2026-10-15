@@ -1,0 +1,25 @@
+#include <winver.h>
+#include "../../app/version.h"
+1 ICON "SDR-Tiouner.ico"
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION SDR_TIOUNER_VERSION_MAJOR,SDR_TIOUNER_VERSION_MINOR,SDR_TIOUNER_VERSION_PATCH,0
+PRODUCTVERSION SDR_TIOUNER_VERSION_MAJOR,SDR_TIOUNER_VERSION_MINOR,SDR_TIOUNER_VERSION_PATCH,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "FileDescription", "SDR-Tiouner"
+      VALUE "InternalName", "SDR-Tiouner"
+      VALUE "OriginalFilename", "SDR-Tiouner.exe"
+      VALUE "CompanyName", "HB9IIU"
+      VALUE "ProductName", "SDR-Tiouner"
+      VALUE "ProductVersion", SDR_TIOUNER_VERSION
+      VALUE "LegalCopyright", "GPL-3.0-or-later"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END
