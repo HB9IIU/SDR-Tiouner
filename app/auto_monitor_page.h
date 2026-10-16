@@ -147,11 +147,11 @@ function drawActivitySpectrum(){
  const rect=activityCanvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1,w=Math.max(1,rect.width),h=130;
  if(activityCanvas.width!==Math.round(w*dpr)||activityCanvas.height!==Math.round(h*dpr)){activityCanvas.width=Math.round(w*dpr);activityCanvas.height=Math.round(h*dpr);}
  const c=activityContext;c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
- const left=32,right=w-16,top=22,bottom=h-25,x=f=>left+(f-10490.5)/9*(right-left);
+ const left=32,right=w-16,top=12,bottom=h-25,x=f=>left+(f-10490.5)/9*(right-left);
  c.font='11px system-ui';c.lineWidth=1;c.textAlign='center';
  for(let row=0;row<5;row++){const y=top+(bottom-top)*row/4;c.strokeStyle='#28394e';c.beginPath();c.moveTo(left,y);c.lineTo(right,y);c.stroke();}
  for(let f=10491;f<=10499;f+=w<600?2:1){c.strokeStyle='#28394e';c.beginPath();c.moveTo(x(f),top);c.lineTo(x(f),bottom);c.stroke();c.fillStyle='#9aafca';c.fillText(f,x(f),h-7);}
- const data=state?.batcSpectrum||[];const floor=.12*65535;let maximum=floor+1;for(const value of data)maximum=Math.max(maximum,value);const span=(maximum-floor)*1.05,spectrumLevel=value=>Math.max(0,Math.min(1,(value-floor)/span));document.querySelector('#spectrum-status').textContent=data.length?'LIVE · BATC 10490.5–10499.5 MHz'+radioWindow():'BATC unavailable · waiting';
+ const data=state?.batcSpectrum||[];const floor=.12*65535;let maximum=floor+1;for(const value of data)maximum=Math.max(maximum,value);const span=(maximum-floor)*1.02,spectrumLevel=value=>Math.max(0,Math.min(1,(value-floor)/span));document.querySelector('#spectrum-status').textContent=data.length?'LIVE · BATC 10490.5–10499.5 MHz'+radioWindow():'BATC unavailable · waiting';
  c.save();c.beginPath();c.rect(left,top,right-left,bottom-top);c.clip();
  if(data.length>1){
   // Peak-preserving pixel buckets keep narrow carriers visible without drawing thousands of points.
@@ -160,11 +160,12 @@ function drawActivitySpectrum(){
   c.beginPath();points.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.lineTo(right,bottom);c.lineTo(left,bottom);c.closePath();const fill=c.createLinearGradient(0,top,0,bottom);fill.addColorStop(0,'rgba(130,216,178,.5)');fill.addColorStop(1,'rgba(130,216,178,.02)');c.fillStyle=fill;c.fill();c.beginPath();points.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.strokeStyle='#82d8b2';c.lineWidth=1.5;c.stroke();
  }else{c.fillStyle='#9aafca';c.fillText('Waiting for BATC spectrum',(left+right)/2,(top+bottom)/2);}
  c.restore();const colors=['#82d8b2','#f0c87a','#99b9ff','#d9a5ee'];
- for(const [i,ch]of (state?.channels||[]).entries())if(ch.enabled&&ch.locked&&ch.service&&data.length>1){
+ const beaconChannel=(state?.autoMonitor?.cards||[]).find(k=>k.beacon)?.channel;
+ for(const [i,ch]of (state?.channels||[]).entries())if(ch.enabled&&ch.locked&&ch.service&&data.length>1&&ch.id!==beaconChannel){
   const bin=Math.round((ch.frequency-10490.5)/9*(data.length-1));if(bin<0||bin>=data.length)continue;
   let sum=0,n=0;for(let j=Math.max(0,bin-3);j<=Math.min(data.length-1,bin+3);j++){sum+=data[j];n++;}
   const level=spectrumLevel(sum/n),label=ch.service;
-  const half=Math.min((right-left)/2,c.measureText(label).width/2),px=Math.max(left+half,Math.min(right-half,x(ch.frequency))),py=Math.max(14,bottom-level*(bottom-top)-7);
+  const half=Math.min((right-left)/2,c.measureText(label).width/2),px=Math.max(left+half,Math.min(right-half,x(ch.frequency))),py=Math.max(10,bottom-level*(bottom-top)-5);
   c.textAlign='center';c.strokeStyle='#0b1421';c.lineWidth=3;c.strokeText(label,px,py,right-left);c.fillStyle=colors[i%colors.length];c.fillText(label,px,py,right-left);
  }
 }
