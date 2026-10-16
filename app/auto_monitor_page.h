@@ -60,6 +60,8 @@ video{display:block;width:100%;height:100%;object-fit:contain;background:#000}
 .lb-box{background:#0f1927;border:1px solid var(--oa-line);border-radius:16px;overflow:hidden;box-shadow:0 18px 50px #000c}
 .lb-head{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--oa-line)}.lb-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lb-stage{background:#000;cursor:zoom-out}.lb-stage video{width:100%;height:100%}
+#quit-dialog{position:fixed;inset:0;z-index:1070;display:none;align-items:center;justify-content:center;background:rgba(4,7,12,.7)}#quit-dialog.open{display:flex}.qd-box{width:min(380px,calc(100vw - 32px));background:#0f1927;border:1px solid var(--oa-line);border-radius:16px;padding:20px;box-shadow:0 18px 50px #000c}.qd-box p{margin:8px 0 16px;color:#adc2dc;font-size:14px}.qd-actions{display:flex;justify-content:flex-end;gap:8px}.qd-actions button{padding:5px 14px;border-radius:6px;font-size:14px;cursor:pointer;color:#c4d3e6;background:transparent;border:1px solid #3a4d66}.qd-actions button:hover{background:#27394f;color:#fff}.qd-actions #qd-ok{color:#fff;background:#dc3545;border-color:#dc3545}.qd-actions #qd-ok:hover{background:#c22d3b}
+#goodbye{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;background:radial-gradient(1100px 560px at 8% -12%,#143552 0,transparent 62%),radial-gradient(900px 520px at 104% -4%,#26306a 0,transparent 58%),#070b12}.gb-box img{width:72px;height:72px;border-radius:16px;object-fit:cover;box-shadow:0 0 30px #83d6b24d}.gb-box h1{font-size:26px;font-weight:700;margin:18px 0 8px;color:#e5edf8}.gb-box p{color:#adc2dc;margin:4px 0}.gb-box .gb-73{color:#83d6b2;margin-top:14px}
 #lb-close{padding:4px 10px;border-radius:6px;font-size:13px;color:#c4d3e6;background:transparent;border:1px solid #3a4d66;cursor:pointer}#lb-close:hover{background:#27394f;color:#fff}
 @media(max-width:1100px){#grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:900px){.load-bar{display:none}}
@@ -71,7 +73,7 @@ video{display:block;width:100%;height:100%;object-fit:contain;background:#000}
 <div id="error" role="alert"></div>
 <section class="card" aria-label="Read-only BATC Spectrum"><div class="card-header spec-head"><strong>BATC Spectrum</strong><span id="candidates" class="sub cand"></span><span id="spectrum-status" class="sub">Waiting for spectrum</span></div><div class="plot"><canvas id="activity-spectrum" role="img" aria-label="Live BATC spectrum from 10490.5 to 10499.5 MHz; display only"></canvas></div></section>
 <div id="grid"></div></main>
-<div id="lightbox" role="dialog" aria-label="Enlarged picture"><div class="lb-box"><div class="lb-head"><strong class="lb-title"></strong><span class="lb-vol"></span><button id="lb-close" type="button">Close</button></div><div class="lb-stage"></div></div></div>
+<div id="quit-dialog" role="alertdialog" aria-labelledby="qd-title"><div class="qd-box"><b id="qd-title">Quit SDR-Tiouner?</b><p>This stops the receiver and all streams, including Stream out.</p><div class="qd-actions"><button id="qd-cancel" type="button">Cancel</button><button id="qd-ok" type="button">Quit</button></div></div></div><div id="lightbox" role="dialog" aria-label="Enlarged picture"><div class="lb-box"><div class="lb-head"><strong class="lb-title"></strong><span class="lb-vol"></span><button id="lb-close" type="button">Close</button></div><div class="lb-stage"></div></div></div>
 <script src="/assets/playback.js"></script>
 <script>
 const token='__CONTROL_TOKEN__',views=new Map();let state=null,audioId=null,disabledSince=0,nextStart=0;
@@ -93,7 +95,14 @@ document.addEventListener('keydown',e=>{if(!lbMem)return;if(e.key==='Escape')lbC
 function headerRefresh(){if(state.version){const t=document.querySelector('#app-version');if(t&&!t.textContent)t.textContent='v'+state.version;const bb=document.querySelector('#beta-badge');if(bb)bb.hidden=!state.beta;}
 const badge=document.querySelector('#capture');badge.textContent=state.running?'RECEIVING':'STOPPED';badge.classList.toggle('lock',!!state.running);
 const l=state.load;if(l&&l.valid){const total=l.total,fill=document.querySelector('#load-fill');fill.style.width=Math.min(100,total/30*100)+'%';fill.dataset.level=total<10?'ok':total<25?'warn':'high';document.querySelector('#load-text').textContent='App '+Math.round(total)+'%';document.querySelector('#load-gauge').title='CPU of this program (receiver + video helpers) as a share of the whole PC. Memory: '+Math.round(l.mb)+' MB.';}}
-document.querySelector('#quit').onclick=async()=>{try{const r=await fetch('/api/shutdown',{method:'POST',headers:{'X-OnAir-Control':token}});if(!r.ok)throw Error(await r.text());document.querySelector('#status').textContent='SDR-Tiouner closed. You may close this page.';}catch(e){document.querySelector('#error').textContent=e.message;}};
+let closing=false;
+// After Quit: a plain page, so it is clear that SDR-Tiouner is closed (the polling stops, the video sessions are closed).
+function showGoodbye(){closing=true;for(const v of views.values())disconnect(v);const logo=document.querySelector('.brand img').src;const g=document.createElement('div');g.id='goodbye';g.innerHTML='<div class="gb-box"><img src="'+logo+'" alt=""><h1>Thank you for using SDR-Tiouner</h1><p>The receiver has been stopped. You can close this tab now.</p><p class="gb-73">73 and happy DATV watching!</p></div>';document.body.append(g);document.title='SDR-Tiouner closed';}
+const qd=document.querySelector('#quit-dialog');function quitHide(){qd.classList.remove('open');}
+document.querySelector('#quit').onclick=()=>{qd.classList.add('open');document.querySelector('#qd-cancel').focus();};
+document.querySelector('#qd-cancel').onclick=quitHide;qd.addEventListener('mousedown',e=>{if(e.target===qd)quitHide();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&qd.classList.contains('open'))quitHide();});
+document.querySelector('#qd-ok').onclick=async()=>{quitHide();try{const r=await fetch('/api/shutdown',{method:'POST',headers:{'X-OnAir-Control':token}});if(!r.ok)throw Error(await r.text());showGoodbye();}catch(e){if(e instanceof TypeError)showGoodbye();else document.querySelector('#error').textContent=e.message;}};
 
 // Two rows of cards (more than one row's worth): make the grid just narrow enough that all rows and the spectrum fit the window.
 let fitCount=-1;
@@ -131,7 +140,7 @@ const hasPicture=!!ch&&ch.enabled&&v.video.readyState>=2&&v.video.videoWidth>0;v
 v.el.querySelector('.empty').textContent=card.beacon&&a.beaconMissing?'No beacon received · check the radio-to-LNB connection and LNB bias (18 V)':card.lost?'Signal lost · '+card.frequency.toFixed(3)+' MHz':!ch||!ch.enabled?(card.beacon?'Waiting for beacon':'Waiting for assignment'):ch.locked?'Waiting for video':card.beacon?'Waiting for beacon':'Acquiring transmission…';
 if(playbackActive&&state.running&&ch&&ch.enabled&&!ch.error)connect(v);else if(v.pc)disconnect(v);}
 if(views.size!==fitCount){fitCount=views.size;fitGrid();}document.querySelector('#candidates').textContent='Detected above the beacon: '+(a.candidates.map(c=>c.frequency.toFixed(3)+' MHz / '+c.symbolRate+' kS/s').join(' · ')||'none')+' · '+a.cards.length+' card(s) · estimated symbol rates';
-}catch(e){document.querySelector('#status').textContent='Receiver unavailable';document.querySelector('#error').textContent=e.message;}finally{setTimeout(poll,500);}}
+}catch(e){document.querySelector('#status').textContent='Receiver unavailable';document.querySelector('#error').textContent=e.message;}finally{if(!closing)setTimeout(poll,500);}}
 const activityCanvas=document.querySelector('#activity-spectrum'),activityContext=activityCanvas.getContext('2d');
 function drawActivitySpectrum(){
  const rect=activityCanvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1,w=Math.max(1,rect.width),h=130;
