@@ -169,8 +169,8 @@ protected:
         }
         if (best < want * 0.999) {
             char b[260];
-            snprintf(b, sizeof b, "LimeSDR: this USB connection carries %.1f Msps without losing samples: running at %.1f Msps instead of %.1f (a USB 3 port gives the full rate)",
-                     best / 1e6, best / 1e6, want / 1e6);
+            snprintf(b, sizeof b, "LimeSDR: this USB connection is limited to %.1f Msps (the full band needs %.1f; a USB 3 port gives it)",
+                     best / 1e6, want / 1e6);
             note = b;
         }
         return std::min(want, best);

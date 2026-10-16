@@ -24,6 +24,7 @@ std::string escape(const std::string& input) {
     std::string out;
     for (unsigned char c : input) {
         if (c == '\\' || c == '"') { out += '\\'; out += c; }
+        else if (c == '\n') out += "\\n";
         else if (c < 32) out += ' ';
         else out += c;
     }
@@ -233,7 +234,7 @@ struct MultiWeb::Impl {
                 if (!std::isfinite(port) || port != std::floor(port) || port < 1024 || port > 65000 || (enabled != 0 && enabled != 1)) { reply(400, "text/plain", "Invalid port (1024-65000)"); return; }
                 command.action = MultiCommand::UdpSet; command.udpHost = host; command.udpPort = (int)port; command.udpEnabled = enabled == 1;
             } else if (path == "/api/calibrate") {
-                if (!receiver.running()) { reply(409, "text/plain", "Start capture first: the calibration needs the beacon"); return; }
+                if (!receiver.running()) { reply(409, "text/plain", "Start receiving first: the calibration needs the beacon"); return; }
                 command.action = MultiCommand::Calibrate;
             } else if (path == "/api/auto/start") command.action = MultiCommand::AutoStart;
             else if (path == "/api/auto/stop") command.action = MultiCommand::AutoStop;

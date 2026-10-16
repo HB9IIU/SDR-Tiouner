@@ -26,6 +26,7 @@ The pages can also be opened from another PC on the same network, see [LAN_VIEWI
 | SDRplay RSP | Through the SDRplay API, which you install from SDRplay. I have an RSP2. |
 | Airspy R2 / Mini | Native driver, 10 Msps. |
 | PlutoSDR | USB or network. The speed of the link decides how much of the band you get. |
+| FISHBall-PlutoSky (Z7020-AD9361) | Appears in the list as a PlutoSDR (native driver). Over Ethernet it runs at the full 10 Msps without dropping samples, so you get the whole band. Over its USB connection it ran at only about 5 Msps. |
 | LimeSDR Mini | Needs USB 3 for the whole band, and the Microsoft Visual C++ Redistributable (x64), which most PCs already have. |
 | RTL-SDR | Only about 2.4 Msps: one channel, maybe a second one if it is very narrow (low symbol rate) and falls inside the same window. Not the 1.5 MS/s beacon. |
 

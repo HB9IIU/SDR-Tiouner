@@ -444,7 +444,7 @@ protected:
         }
         if (best < want * 0.999) {
             char b[200];
-            snprintf(b, sizeof b, "PlutoSDR: this connection carries %.1f Msps without losing samples: running at %.1f Msps instead of %.1f", best / 1e6, best / 1e6, want / 1e6);
+            snprintf(b, sizeof b, "PlutoSDR: this connection is limited to %.1f Msps (the full band needs %.1f)", best / 1e6, want / 1e6);
             note = b;
         }
         return std::min(want, best);

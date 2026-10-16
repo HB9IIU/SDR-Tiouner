@@ -37,7 +37,7 @@ struct Settings {
     std::string lastRadio;         // the radio (as listed) of the last capture: selected again at the next start
     double gain = 30;
     bool automaticGain = true;
-    std::vector<ChannelConfig> channels{{10491.5,1500000,0,false},{10496.5,500000,0,false},{10493.0,333000,0,false},{10498.0,333000,0,false}};
+    std::vector<ChannelConfig> channels{{10491.5,1500000,0,false},{10492.75,500000,0,false},{10493.5,333000,0,false},{10494.0,333000,0,false}};
 };
 std::string trim(std::string value) {
     auto first = value.find_first_not_of(" \t\r\n"); if (first == std::string::npos) return {};
@@ -159,19 +159,17 @@ double narrowWindowIfHz(double satMhz, double symbolRateHz, double rateHz, doubl
 }
 
 // Why a radio runs below the full band, in words the user can act on (the link was measured, or the radio is simply narrow)
-std::string slowRadioReason(const DeviceInfo& d, double rateHz) {
-    char b[300];
-    const double m = rateHz / 1e6;
-    if (d.board == "pluto" && d.nativeArgs.rfind("ip:", 0) == 0 && d.nativeArgs != "ip:192.168.2.1")
-        std::snprintf(b, sizeof b, "The Pluto's network link carries only %.1f Msps (a 100 Mbit/s connection). A gigabit link (a Pluto+) would give the full band; over its USB cable a Pluto carries about 6 Msps.", m);
-    else if (d.board == "pluto")
-        std::snprintf(b, sizeof b, "The Pluto's USB connection carries only %.1f Msps (USB 2). Over a gigabit network link (a Pluto+) it would give the full band.", m);
+// A notice is "title\ntext": the page shows the first line as the title.
+static const char* kPositionHint = "Choose which part you see with the three buttons on the Local Spectrum panel.";
+std::string slowBandNotice(const DeviceInfo& d, double rateHz) {
+    char b[400];
+    const double mhz = rateHz / 1e6 * 0.98;
+    if (d.board == "pluto")   // (USB and network cannot be told apart reliably: the Pluto also shows up as a network device over USB)
+        std::snprintf(b, sizeof b, "Pluto: part of the band only\nThis connection delivers %.1f MHz of the 9 MHz band.\n%s\nA faster link (gigabit Ethernet) gives the full band.", mhz, kPositionHint);
     else if (d.board == "lime")
-        std::snprintf(b, sizeof b, "This USB connection carries only %.1f Msps. A USB 3 port and cable give the Lime the full band.", m);
-    else if (d.board == "rtlsdr")
-        std::snprintf(b, sizeof b, "An RTL-SDR can only receive about %.1f MHz of the band at once, not the whole transponder.", m);
+        std::snprintf(b, sizeof b, "Lime: part of the band only\nThis USB port delivers %.1f MHz of the 9 MHz band.\n%s\nA USB 3 port and cable give the full band.", mhz, kPositionHint);
     else
-        std::snprintf(b, sizeof b, "This radio's connection carries only %.1f Msps (a full band needs 10).", m);
+        std::snprintf(b, sizeof b, "Part of the band only\nThis radio's connection delivers %.1f MHz of the 9 MHz band.\n%s", mhz, kPositionHint);
     return b;
 }
 
@@ -194,7 +192,7 @@ int main(int argc, char** argv) {
                 "   Hello, and welcome! Several DATV channels from one radio.\n"
                 "   Free software (GPL-3.0-or-later), based on OnAir.\n"
                 "   Contact: qrz.com/db/HB9IIU\n"
-                "   73 and good DX!\n"
+                "   73 and happy DATV watching!\n"
                 "  ---------------------------------------------------------------\n\n" << std::flush;
         }
         bool demo = false, open = true, bothS2 = false;
@@ -327,21 +325,19 @@ int main(int argc, char** argv) {
                                                                      settings.capture.lnbHz, receiver.config().correctionHz, &off);
                                 if (receiver.setCenterIf(ifHz)) settings.capture.centerIfHz = ifHz;
                                 narrowOnly = slots.front().id;
-                                char text[640];
+                                const bool rtl = radios[selected].board == "rtlsdr";
+                                char text[800];
                                 std::snprintf(text, sizeof text,
-                                    "Sorry: %s SDR-Tiouner runs one channel (CH %u at %.3f MHz). Start another from its card if it falls in the window now shown, "
-                                    "or use a wider radio (HackRF, Airspy, SDRplay, Lime on USB 3).%s", slowRadioReason(radios[selected], actualRate).c_str(),
+                                    "%s: one channel\n%s %.1f MHz of the band at once, so SDR-Tiouner runs one channel: CH %u at %.3f MHz.\n"
+                                    "Another channel can be started from its card if it falls inside the window now shown.\n"
+                                    "For more channels, use a wider radio (HackRF, Airspy, SDRplay, Lime on USB 3).%s",
+                                    rtl ? "RTL-SDR" : "Narrow connection",
+                                    rtl ? "An RTL-SDR sees only" : "This connection delivers only", actualRate / 1e6 * 0.98,
                                     slots.front().id, slots.front().config.satelliteMhz,
-                                    slots.front().config.symbolRate > 1.0e6 ? " This channel is wider than about 1 MS/s, which is more than this radio can decode: choose a narrower one." : "");
+                                    slots.front().config.symbolRate > 1.0e6 ? "\nThis channel is wider than about 1 MS/s, which is too much for this radio. Please choose a narrower one." : "");
                                 web.setNotice(text);
                             } else if (actualRate > 0 && actualRate < 9.5e6) {
-                                {
-                                    char text[640];
-                                    std::snprintf(text, sizeof text,
-                                        "%s About %.1f MHz of the band is received at once: use the position buttons to choose which part.",
-                                        slowRadioReason(radios[selected], actualRate).c_str(), actualRate / 1e6 * 0.98);
-                                    web.setNotice(text);
-                                }
+                                web.setNotice(slowBandNotice(radios[selected], actualRate));
                                 const auto targets = receiver.alignTargetsMhz();
                                 const double correction = receiver.config().correctionHz, lnb = settings.capture.lnbHz;
                                 int bestCount = -1; double bestSat = targets[1];
@@ -362,7 +358,9 @@ int main(int argc, char** argv) {
                             persist();
                             {
                                 char text[220];
-                                if (receiver.sampleRate() < 9.5e6) std::snprintf(text, sizeof text, "Capture running at %.1f Msps (the most this radio can do here): %.1f to %.1f MHz. Channels outside it cannot lock; use the position buttons.",
+                                if (receiver.sampleRate() < 3e6) std::snprintf(text, sizeof text, "Capture running at %.1f Msps: %.1f to %.1f MHz. The window follows the channel you start.",
+                                    receiver.sampleRate() / 1e6, receiver.config().centerIfHz / 1e6 + settings.capture.lnbHz / 1e6 - receiver.sampleRate() / 2e6, receiver.config().centerIfHz / 1e6 + settings.capture.lnbHz / 1e6 + receiver.sampleRate() / 2e6);
+                                else if (receiver.sampleRate() < 9.5e6) std::snprintf(text, sizeof text, "Capture running at %.1f Msps (the most this radio can do here): %.1f to %.1f MHz. Channels outside it cannot lock; use the position buttons.",
                                     receiver.sampleRate() / 1e6, receiver.config().centerIfHz / 1e6 + settings.capture.lnbHz / 1e6 - receiver.sampleRate() / 2e6, receiver.config().centerIfHz / 1e6 + settings.capture.lnbHz / 1e6 + receiver.sampleRate() / 2e6);
                                 else std::snprintf(text, sizeof text, "Capture running: all channels started.");
                                 web.setMessage(text);
@@ -388,7 +386,7 @@ int main(int argc, char** argv) {
                     }
                 } else if (command.action == MultiCommand::Calibrate) {
                     const auto list = receiver.channels();
-                    if (!receiver.running()) error = "Start capture first";
+                    if (!receiver.running()) error = "Start receiving first";
                     else if (calibration.phase) error = "The calibration is already running";
                     else if (list.empty()) error = "There is no channel to calibrate with";
                     else {
@@ -407,14 +405,25 @@ int main(int argc, char** argv) {
                     if (!receiver.create(command.channel)) error = "Channel pool is full or the carrier falls outside the capture";
                     else { persist(); web.setMessage("Channel created"); }
                 } else if (command.action == MultiCommand::ChannelSet) {
-                    if (command.channel.enabled && !receiver.running()) error = "Start shared capture first";
+                    if (command.channel.enabled && !receiver.running()) error = "Start shared receiving first";
                     else if ([&] {
-                        // a narrow radio (one channel): the window follows the channel that runs, so it can be tuned anywhere in the band
+                        // a narrow radio (an RTL-SDR): the window follows the channel that is started, so it can be tuned anywhere in the band;
+                        // a running channel that no longer fits the moved window is stopped
                         const auto now = receiver.channels();
-                        if (receiver.running() && receiver.sampleRate() > 0 && receiver.sampleRate() < 3e6 && !now.empty() && command.id == now.front().id && command.channel.enabled) {
+                        if (receiver.running() && receiver.sampleRate() > 0 && receiver.sampleRate() < 3e6 && command.channel.enabled) {
                             const double ifHz = narrowWindowIfHz(command.channel.satelliteMhz, command.channel.symbolRate, receiver.sampleRate(),
                                                                  settings.capture.lnbHz, receiver.config().correctionHz);
-                            if (receiver.setCenterIf(ifHz)) settings.capture.centerIfHz = ifHz;
+                            if (receiver.setCenterIf(ifHz)) {
+                                settings.capture.centerIfHz = ifHz;
+                                const double centreMhz = (ifHz - receiver.config().correctionHz + settings.capture.lnbHz) / 1e6;
+                                for (const auto& other : now) {
+                                    if (other.id == command.id || !other.config.enabled) continue;
+                                    if (std::abs(other.config.satelliteMhz - centreMhz) * 1e6 + other.config.symbolRate * 1.35 / 2 > receiver.sampleRate() * .49) {
+                                        ChannelConfig off = other.config; off.enabled = false; std::string ignored;
+                                        receiver.configure(other.id, off, ignored);
+                                    }
+                                }
+                            }
                         }
                         return receiver.configure(command.id,command.channel,error); }()) { persist(); web.setMessage("Channel " + std::to_string(command.id) + (command.channel.enabled ? " tuning" : " stopped")); }
                 }
