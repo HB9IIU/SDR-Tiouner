@@ -38,7 +38,7 @@ You need Windows 10 or 11 (64-bit, a CPU with AVX2), a QO-100 receive chain with
 
 1. Download the latest zip from the [Releases](https://github.com/HB9IIU/SDR-Tiouner/releases) page of this repository and unpack it anywhere.
 2. Run `Start SDR-Tiouner.cmd`. Your browser opens at `http://127.0.0.1:47321`.
-3. Choose your radio on the Receiver page and press **Start capture**, or open **Auto Monitor**, which starts the radio by itself.
+3. Choose your radio on the Receiver page and press **Start receiving**, or open **Auto Monitor**, which starts the radio by itself.
 4. To use the pages from another PC, run `Enable LAN access.cmd` once as administrator.
 
 Without a radio you can try `SDR-Tiouner.exe --demo`, which generates two test carriers.

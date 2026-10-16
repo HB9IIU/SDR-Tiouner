@@ -16,7 +16,7 @@ The GNU General Public License (`LICENSE.txt`) lets anyone charge a fee for a co
 
 Run `Start SDR-Tiouner.cmd` in the package folder (or `SDR-Tiouner.exe`).
 
-The browser opens at `http://127.0.0.1:47321`. Close the other receiver before starting the same SDRplay in SDR-Tiouner. Choose the appropriate SDRplay antenna entry, set gain, and press **Start capture**. Enter the frequency and symbol rate for each carrier, then press **Start** on each channel. **Retune** and **Stop** affect only their channel. The BATC spectrum is at the top: select a channel below it and click a transmission to tune that channel, with an estimated symbol rate. The received SDR spectrum and waterfall remain below the radio controls. Press **Sound** on the video you want to hear. **Close** exits the backend and its helper processes.
+The browser opens at `http://127.0.0.1:47321`. Close the other receiver before starting the same SDRplay in SDR-Tiouner. Choose the appropriate SDRplay antenna entry, set gain, and press **Start receiving**. Enter the frequency and symbol rate for each carrier, then press **Start** on each channel. **Retune** and **Stop** affect only their channel. The BATC spectrum is at the top: select a channel below it and click a transmission to tune that channel, with an estimated symbol rate. The received SDR spectrum and waterfall remain below the radio controls. Press **Sound** on the video you want to hear. **Close** exits the backend and its helper processes.
 
 To exercise two generated RF carriers without touching a radio:
 
@@ -48,7 +48,7 @@ The Airspy R2 and Mini are driven natively (`core/src/source_airspy.cpp`); the p
 
 ## Configuration and architecture
 
-`multi-receiver.ini` beside the executable sets the pool cap (`max_channels`, 8 by default), shared sample rate, IF centre, LNB LO, frequency correction, gain, ports, and a list of channels. Channel parameters changed through the web page are saved there. Hardware always requires **Start capture**; it does not auto-start on launch. Advanced antenna power is off. Select the antenna entry matching the cable connection.
+`multi-receiver.ini` beside the executable sets the pool cap (`max_channels`, 8 by default), shared sample rate, IF centre, LNB LO, frequency correction, gain, ports, and a list of channels. Channel parameters changed through the web page are saved there. Hardware always requires **Start receiving**; it does not auto-start on launch. Advanced antenna power is off. Select the antenna entry matching the cable connection.
 
 - One `IqSource` opens the radio once, with a fixed 745 MHz IF centre and requested 10 Msps. With a 9750 MHz LNB, the nominal sampled span is satellite 10490–10500 MHz. The hardware's actual sample rate is checked. Usable RF bandwidth and attenuation at the edges must be checked with the RSP and LNB.
 - `MultiReceiver` allocates channel objects from a configurable pool. IDs, status, publisher ports and cards are data driven. The two generated test carriers are test fixtures, not the production channel architecture.

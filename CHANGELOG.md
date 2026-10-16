@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-10-16)
+
+Improved ergonomics and ease of use: a cleaner layout and clearer messages. The decoding is unchanged.
+
 ## 0.1.0 (2026-10-16)
 
 First stable release.

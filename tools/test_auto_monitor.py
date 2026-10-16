@@ -66,7 +66,7 @@ def main():
                 page.wait_for_function("document.querySelectorAll('[data-card]').length===2")
                 assert page.locator('#start, #stop, #full').count()==0
                 assert page.locator('#layout').input_value()=='4'
-                assert page.locator('#layout option').all_text_contents()==['2 columns','4 columns']
+                assert page.locator('#layout option').all_text_contents()==['2 columns','3 columns','4 columns']
                 assert page.locator('#activity-spectrum').bounding_box()['y'] < page.locator('#grid').bounding_box()['y']
                 revisions0=[c['revision'] for c in state()['channels']]
                 page.locator('#activity-spectrum').click(force=True)
@@ -87,7 +87,7 @@ def main():
                 page.locator('.volume').nth(1).evaluate("e=>{e.value=0;e.dispatchEvent(new Event('input',{bubbles:true}));}")
                 assert page.locator('video').evaluate_all('(vs)=>vs.every(v=>v.muted)')
                 assert page.locator('.details').count()==0
-                assert 'MHz' not in page.locator('.meta').first.inner_text()
+                assert 'MHz' not in page.locator('[data-card] .card-header').first.inner_text()
                 page.locator('#layout').select_option('4')
                 assert page.locator('#grid').evaluate("e=>getComputedStyle(e).gridTemplateColumns.split(' ').length")==4
                 page.locator('#layout').select_option('2')

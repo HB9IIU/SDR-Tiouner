@@ -13,7 +13,7 @@ There is no fixed number of cards: a decoder is created for every station found,
 
 The capture window stays fixed: only carriers that fit completely inside it are assigned. Spectrum estimates can be wrong for weak, crowded or unusual carriers.
 
-The page shows a read-only BATC spectrum with station names, and a grid of cards in two or four columns with one volume slider per card (zero mutes; raising another card mutes the previous one). Video playback belongs to one page at a time: opening Receiver or Auto Monitor takes playback from the previous page; the other shows **Play video here**.
+The page shows a read-only BATC spectrum with station names, and a grid of cards in two, three or four columns with one volume slider per card (zero mutes; raising another card mutes the previous one). Video playback belongs to one page at a time: opening Receiver or Auto Monitor takes playback from the previous page; the other shows **Play video here**.
 
 Any manual operation on the Receiver page (tuning, capture alignment, calibration, radio stop) stops the automatic scanning and leaves the channels as they are. Gain and UDP output can be changed while monitoring. Temporary monitor channels are never written to the settings file. Reopening the page starts the monitor again.
 
