@@ -142,6 +142,7 @@ if(playbackActive&&state.running&&ch&&ch.enabled&&!ch.error)connect(v);else if(v
 [...a.cards].sort((x,y)=>(y.beacon?1:0)-(x.beacon?1:0)||x.frequency-y.frequency).forEach((c,i)=>{const w=views.get(c.uid);if(w)w.el.style.order=i;});if(views.size!==fitCount){fitCount=views.size;fitGrid();}
 }catch(e){document.querySelector('#status').textContent='Receiver unavailable';document.querySelector('#error').textContent=e.message;}finally{if(!closing)setTimeout(poll,500);}}
 const activityCanvas=document.querySelector('#activity-spectrum'),activityContext=activityCanvas.getContext('2d');
+function radioWindow(){if(!state||!state.running||!(state.sampleRate>0))return '';const half=state.sampleRate*.98/2e6,lo=state.centerMhz-half,hi=state.centerMhz+half;return ' · radio '+lo.toFixed(1)+'–'+hi.toFixed(1)+' MHz ('+(hi-lo).toFixed(1)+' MHz)';}
 function drawActivitySpectrum(){
  const rect=activityCanvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1,w=Math.max(1,rect.width),h=130;
  if(activityCanvas.width!==Math.round(w*dpr)||activityCanvas.height!==Math.round(h*dpr)){activityCanvas.width=Math.round(w*dpr);activityCanvas.height=Math.round(h*dpr);}
@@ -150,7 +151,7 @@ function drawActivitySpectrum(){
  c.font='11px system-ui';c.lineWidth=1;c.textAlign='center';
  for(let row=0;row<5;row++){const y=top+(bottom-top)*row/4;c.strokeStyle='#28394e';c.beginPath();c.moveTo(left,y);c.lineTo(right,y);c.stroke();}
  for(let f=10491;f<=10499;f+=w<600?2:1){c.strokeStyle='#28394e';c.beginPath();c.moveTo(x(f),top);c.lineTo(x(f),bottom);c.stroke();c.fillStyle='#9aafca';c.fillText(f,x(f),h-7);}
- const data=state?.batcSpectrum||[];const floor=.12*65535;let maximum=floor+1;for(const value of data)maximum=Math.max(maximum,value);const span=(maximum-floor)*1.05,spectrumLevel=value=>Math.max(0,Math.min(1,(value-floor)/span));document.querySelector('#spectrum-status').textContent=data.length?'LIVE · 10490.5–10499.5 MHz':'BATC unavailable · waiting';
+ const data=state?.batcSpectrum||[];const floor=.12*65535;let maximum=floor+1;for(const value of data)maximum=Math.max(maximum,value);const span=(maximum-floor)*1.05,spectrumLevel=value=>Math.max(0,Math.min(1,(value-floor)/span));document.querySelector('#spectrum-status').textContent=data.length?'LIVE · BATC 10490.5–10499.5 MHz'+radioWindow():'BATC unavailable · waiting';
  c.save();c.beginPath();c.rect(left,top,right-left,bottom-top);c.clip();
  if(data.length>1){
   // Peak-preserving pixel buckets keep narrow carriers visible without drawing thousands of points.
