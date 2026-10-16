@@ -36,7 +36,7 @@ If a radio can't deliver 10 Msps you get a narrower window of the band. The page
 
 You need Windows 10 or 11 (64-bit, a CPU with AVX2), a QO-100 receive chain with an LNB, and one of the radios above. The Auto Monitor also needs an internet connection, because it reads the BATC spectrum.
 
-1. Download the latest zip from the [Releases](https://github.com/HB9IIU/SDR-Tiouner/releases) page of this repository and unpack it anywhere.
+1. Download the latest zip from the [Releases](https://github.com/HB9IIU/SDR-Tiouner/releases) page of this repository. **Extract the whole zip** into a folder of your own (right-click, Extract All). Do not run the program from inside the zip.
 2. Run `Start SDR-Tiouner.cmd`. Your browser opens at `http://127.0.0.1:47321`.
 3. Choose your radio on the Receiver page and press **Start receiving**, or open **Auto Monitor**, which starts the radio by itself.
 4. To use the pages from another PC, run `Enable LAN access.cmd` once as administrator.
@@ -55,6 +55,7 @@ More details are in [MULTI_RECEIVER.md](MULTI_RECEIVER.md) and [AUTO_MONITOR.md]
 
 These are the things I ran into myself:
 
+- **Windows says a DLL is missing** (`libhackrf.dll`, `libwinpthread-1.dll`, `libgcc_s_seh-1.dll`, `libSoapySDR.dll` ...). The program was started without the files that belong to it, usually from inside the zip. Extract the whole zip first and start `Start SDR-Tiouner.cmd` from the extracted folder.
 - **The radio is not listed.** Unplug it, wait a few seconds and plug it in again, preferably into a port directly on the PC and not through an unpowered hub. Close every other program that may hold the radio: SDRplay and Airspy can only be used by one program at a time. For an SDRplay the SDRplay API must be installed, and then restart SDR-Tiouner.
 - **The radio is listed, but nothing locks and the page says the radio is not delivering samples.** A USB radio sometimes gets stuck, especially after a program was killed instead of closed. Close SDR-Tiouner with the **Close** button on the Receiver page, replug the radio and start again.
 - **"No beacon received".** Nothing at all is locking, so look at the dish, the LNB and the cable. The LNB needs its power (about 18 V on many LNBs) from somewhere: SDR-Tiouner does not switch on a bias-T of the radio.
