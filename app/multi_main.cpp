@@ -3,6 +3,13 @@
 #include "auto_monitor.h"
 #include "multi_udp.h"
 #include "multi_record.h"
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <shellapi.h>
+#endif
 #include "update_check.h"
 #include "multi_load.h"
 #include "browser_stream.h"
@@ -42,6 +49,15 @@ struct Settings {
     bool automaticGain = true;
     std::vector<ChannelConfig> channels{{10491.5,1500000,0,false},{10492.75,500000,0,false},{10493.5,333000,0,false},{10494.0,333000,0,false}};
 };
+// Shows a folder to the user: on Windows by starting Explorer on it (ShellExecute "open" on a folder does nothing without COM, a program does not need it)
+void showFolder(const fs::path& folder) {
+#ifdef _WIN32
+    const std::wstring argument = L"\"" + folder.wstring() + L"\"";
+    ShellExecuteW(nullptr, L"open", L"explorer.exe", argument.c_str(), nullptr, SW_SHOWNORMAL);
+#else
+    openUrl(folder.string());
+#endif
+}
 std::string trim(std::string value) {
     auto first = value.find_first_not_of(" \t\r\n"); if (first == std::string::npos) return {};
     return value.substr(first, value.find_last_not_of(" \t\r\n") - first + 1);
@@ -439,7 +455,7 @@ int main(int argc, char** argv) {
                 } else if (command.action == MultiCommand::RecordOpen) {
                     std::error_code ignored; fs::create_directories(recordDir, ignored);
                     fs::path shown = recordDir; shown.make_preferred();
-                    openUrl(shown.string());
+                    showFolder(shown);
                 } else if (command.action == MultiCommand::RecordSet) {
                     const bool was = recording;
                     recording = command.record && receiver.running();
