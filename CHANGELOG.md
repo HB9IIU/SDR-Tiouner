@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.2 (unreleased)
+
+Smarter start, clearer messages, and a way to see where picture problems come from.
+
+- **First start:** channel 1 goes on the beacon and channels 2 to 4 on the strongest stations above it. After that, your start list is kept and is used again at every start.
+- **Two channels can no longer receive the same station.**
+- **No radio found:** a red card with a Refresh button. When exactly one radio shows up after Refresh, a green card announces it and receiving starts after 3 seconds (Cancel stops it). With several radios, you choose from a card with one button per radio.
+- **A radio is always pre-selected**, even a slow one.
+- **Radios with a narrow window** (a Pluto over a slow link): a channel outside the window says "Outside radio window" instead of showing another station's picture.
+- **TS Diagnostics** on every card, collapsed by default. It shows bitrate, lost frames, CRC, continuity and TEI errors (last 10 s and total) and the time of the last error. A clean transport stream does not prove the picture is clean.
+- **Auto Monitor:** cards in the order of the stations on the spectrum, a taller spectrum, the radio window shown, and a repeated line removed.
+- Card messages are centred.
+
 ## 0.1.1 (2026-10-16)
 
 Improved ergonomics and ease of use: a cleaner layout and clearer messages. The decoding is unchanged.
