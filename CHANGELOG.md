@@ -14,6 +14,7 @@ Smarter start, clearer messages, and a way to see where picture problems come fr
 - **Record button** on the Receiver and the Auto Monitor page. It writes the untouched transport stream of every running channel to `.ts` files in a `recordings` folder next to the program (one file per channel and tuning; VLC plays them). The button glows and blinks while it records. It stops by itself when less than 1 GB of disk is free.
 - A second copy of the program now says that it is already running and opens the page of the first one.
 - Auto Monitor: the spectrum is as wide as the cards when they fill two rows.
+- **Update check.** A few seconds after the start, the program asks GitHub which release is the latest and shows "Update x.y.z available" in the menu when yours is older. It downloads nothing and sends nothing about you; `check_updates=0` in `multi-receiver.ini` switches it off.
 - Card messages are centred.
 
 ## 0.1.1 (2026-10-16)

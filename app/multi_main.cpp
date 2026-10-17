@@ -3,6 +3,7 @@
 #include "auto_monitor.h"
 #include "multi_udp.h"
 #include "multi_record.h"
+#include "update_check.h"
 #include "multi_load.h"
 #include "browser_stream.h"
 #include "dect2/open_url.h"
@@ -29,6 +30,7 @@ struct Settings {
     int port = 47321, videoBase = 18900, rtspBase = 18560, iceBase = 18190;
     // the untouched TS of every running channel over UDP (host:base+id-1), for VLC / ffplay / OBS / recording
     bool udpOutput = true;
+    bool checkUpdates = true;   // ask GitHub, a few seconds after the start, whether a newer release is out
     std::string udpHost = "127.0.0.1";
     int udpBase = 19000;
     // The frequency correction measured on the beacon, per radio (its serial): what that radio plus the LNB are off by
@@ -86,6 +88,7 @@ Settings load(const fs::path& path) {
             else if (key == "rtsp_port_base") settings.rtspBase = integer(1024,65000);
             else if (key == "ice_port_base") settings.iceBase = integer(1024,65000);
             else if (key == "udp_output") settings.udpOutput = integer(0,1) != 0;
+            else if (key == "check_updates") settings.checkUpdates = integer(0,1) != 0;
             else if (key == "udp_port_base") settings.udpBase = integer(1024,65000);
             else throw std::runtime_error("Unknown configuration key: " + key);
         }
@@ -108,7 +111,7 @@ void save(const fs::path& path, const Settings& settings) {
         << "\ncorrection_hz=" << settings.legacyCorrection << "\nfilter_mhz=" << settings.capture.filterHz / 1e6 << "\ngain_db=" << settings.gain
         << "\nauto_gain=" << (settings.automaticGain ? 1 : 0) << "\nhttp_port=" << settings.port << "\nvideo_port_base=" << settings.videoBase
         << "\nrtsp_port_base=" << settings.rtspBase << "\nice_port_base=" << settings.iceBase
-        << "\nudp_output=" << (settings.udpOutput ? 1 : 0) << "\nudp_host=" << settings.udpHost << "\nudp_port_base=" << settings.udpBase << '\n';
+        << "\ncheck_updates=" << (settings.checkUpdates ? 1 : 0) << "\nudp_output=" << (settings.udpOutput ? 1 : 0) << "\nudp_host=" << settings.udpHost << "\nudp_port_base=" << settings.udpBase << '\n';
     if (!settings.lastRadio.empty()) out << "radio=" << settings.lastRadio << '\n';
     for (const auto& c : settings.calibrations) out << "calibration=" << c.key << ',' << c.correctionHz << ',' << c.when << '\n';
     // the start list of the file stays as it is: at every start the channels come back on it, whatever was tuned while the program ran
@@ -269,6 +272,8 @@ int main(int argc, char** argv) {
         std::map<unsigned, std::unique_ptr<Publisher>> publishers;
         UdpTsOutputs udpOutputs;   // declared after the receiver: its senders end first
         TsRecorder recorder;       // the same for its writers
+        UpdateCheck updates;       // is a newer release out?
+        if (settings.checkUpdates) updates.start(SDR_TIOUNER_VERSION);
         bool recording = false;    // the Record button: not remembered, a new start never begins by recording
         const fs::path recordDir = executable / "recordings";
         CalibrationRun calibration;
@@ -550,8 +555,9 @@ int main(int argc, char** argv) {
             recorder.service(receiver, recording, recordDir);
             if (recording && !recorder.problem().empty()) { web.setNotice(recorder.problem()); recording = false; recorder.service(receiver, false, recordDir); }
             web.setRecording(recorder.json(recording, recordDir));
+            web.setUpdate(updates.json());
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        recorder.stopAll(); udpOutputs.stopAll(); publishers.clear(); web.stop(); receiver.stop(); return 0;
+        updates.stop(); recorder.stopAll(); udpOutputs.stopAll(); publishers.clear(); web.stop(); receiver.stop(); return 0;
     } catch (const std::exception& e) { std::cerr << "SDR-Tiouner: " << e.what() << '\n'; return 1; }
 }

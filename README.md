@@ -47,9 +47,10 @@ More details are in [MULTI_RECEIVER.md](MULTI_RECEIVER.md) and [AUTO_MONITOR.md]
 
 ## Things you should know
 
-- This is version 0.1.0 of a hobby project. I developed and tested it on Windows, mostly with the HackRF. The other radios got less testing. Please tell me what works and what doesn't.
+- This is an early version (0.1.x) of a hobby project. I developed and tested it on Windows, mostly with the HackRF. The other radios got less testing. Please tell me what works and what doesn't.
 - The Auto Monitor only knows the band as BATC's receiver sees it. A weak station may not lock on your side, and only carriers whose plateau reaches 60% of the beacon's are tried.
 - I have not tried it on Linux or macOS.
+- **Updates.** A few seconds after the start, the program asks GitHub which release is the latest. If yours is older, the menu shows "Update x.y.z available", with a link to the release page. It downloads nothing and sends nothing about you. To switch it off, put `check_updates=0` in `multi-receiver.ini`. To update, extract the new zip into a new folder and copy your old `multi-receiver.ini` into it, so that you keep your radio, your calibration and your settings.
 
 ## If it doesn't work
 

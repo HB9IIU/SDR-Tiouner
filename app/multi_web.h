@@ -39,6 +39,8 @@ public:
     void setAutoMonitor(const std::string& json);
     // The recording as a JSON object, passed through to the page ("recording" in the state)
     void setRecording(const std::string& json);
+    // Whether a newer release is out, as a JSON object, passed through to the page (the update entry of the state)
+    void setUpdate(const std::string& json);
 private:
     struct Impl;
     std::unique_ptr<Impl> p_;

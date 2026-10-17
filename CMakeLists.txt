@@ -163,7 +163,7 @@ else()
   endif()
 endif()
 
-add_executable(onair_multi app/multi_main.cpp app/multi_web.cpp app/browser_stream.cpp app/batc_ws.cpp)
+add_executable(onair_multi app/multi_main.cpp app/multi_web.cpp app/browser_stream.cpp app/batc_ws.cpp app/update_check.cpp)
 target_include_directories(onair_multi PRIVATE app core/src)
 target_link_libraries(onair_multi PRIVATE dect2core OpenSSL::SSL OpenSSL::Crypto)
 if(WIN32 AND EXISTS ${CMAKE_SOURCE_DIR}/packaging/windows/sdr_tiouner.rc)
