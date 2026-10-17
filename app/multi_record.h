@@ -64,6 +64,8 @@ public:
         writers_.clear();
         wasEnabled_ = false;
     }
+    uint64_t files() const { return files_; }   // files and bytes of the recording (since it was started)
+    uint64_t bytes() const { return bytes_; }
     // Why a recording had to stop (empty: nothing wrong)
     std::string problem() const { std::lock_guard<std::mutex> lock(mutex_); return problem_; }
     // For the page: {"on":true,"files":3,"bytes":123456,"seconds":42,"dir":"..."}

@@ -437,7 +437,16 @@ int main(int argc, char** argv) {
                     web.setUdpSettings(settings.udpOutput, settings.udpHost, settings.udpBase); persist();
                     web.setMessage(settings.udpOutput ? "Stream out to " + settings.udpHost + ":" + std::to_string(settings.udpBase) : std::string("Stream out switched off"));
                 } else if (command.action == MultiCommand::RecordSet) {
+                    const bool was = recording;
                     recording = command.record && receiver.running();
+                    fs::path shown = recordDir; shown.make_preferred();   // the folder as Windows writes it
+                    if (recording && !was)
+                        web.setNotice("Recording started\nThe files are saved in:\n" + shown.string() + "\nOne file per channel, named with the date, the frequency and the station. The beacon is not recorded.");
+                    else if (!recording && was) {
+                        const double mb = recorder.bytes() / 1e6;
+                        char size[32]; std::snprintf(size, sizeof size, mb < 1000 ? "%.1f MB" : "%.2f GB", mb < 1000 ? mb : mb / 1000);
+                        web.setNotice("Recording stopped\n" + std::to_string(recorder.files()) + (recorder.files() == 1 ? " file, " : " files, ") + size + ", saved in:\n" + shown.string());
+                    }
                     web.setMessage(recording ? "Recording the transport streams to " + recordDir.generic_string() : std::string("Recording stopped"));
                 } else if (command.action == MultiCommand::ChannelCreate) {
                     if (!receiver.create(command.channel)) error = "Channel pool is full or the carrier falls outside the capture";
