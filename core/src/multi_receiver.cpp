@@ -7,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <stdexcept>
 #include <thread>
 #include <optional>
@@ -139,6 +140,12 @@ struct Channel {
                     receiver.configure(0); // drain/stop the old decoder before clearing TS
                     { std::lock_guard<std::mutex> lock(mutex); demux.reset(); status.transport = {}; status.telemetry = {}; }
                     const double offset = config.satelliteMhz * 1e6 - capture.lnbHz + correction - capture.centerIfHz;
+                    if (config.enabled && std::abs(offset) + config.symbolRate * 1.35 / 2 > rate * .49) {
+                        // The radio's window moved (a slower radio): the mixer would wrap around and decode another station.
+                        const double centreMhz = (capture.lnbHz + capture.centerIfHz - correction) / 1e6, halfMhz = rate * .49 / 1e6; char text[96];
+                        std::snprintf(text, sizeof text, "Outside the radio window (%.1f to %.1f MHz)", centreMhz - halfMhz, centreMhz + halfMhz);
+                        throw std::runtime_error(text);
+                    }
                     mixer.configure(rate, offset);
                     int stagesCount = 0;
                     while (rate / (1u << (stagesCount + 1)) >= std::max(2e6, 3.0 * config.symbolRate) && stagesCount < 8) ++stagesCount;
