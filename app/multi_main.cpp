@@ -243,9 +243,11 @@ int main(int argc, char** argv) {
             };
             int best = 99;
             for (size_t i = 0; i < radios.size(); ++i) { const int r = rank(radios[i]); if (r < best) { best = r; selected = (int)i; } }
-            // the radio used last time, when it is still there, wins over the ranking
+            // the radio used last time, when it is still there, wins over the ranking (even a slow one: it was the user's own choice)
             if (!settings.lastRadio.empty())
-                for (size_t i = 0; i < radios.size(); ++i) if (radioLabel(radios[i]) == settings.lastRadio && rank(radios[i]) < 99) selected = (int)i;
+                for (size_t i = 0; i < radios.size(); ++i) if (radioLabel(radios[i]) == settings.lastRadio) selected = (int)i;
+            // nothing chosen yet (only a radio too slow for the whole band, such as an RTL-SDR, is connected): it is still the one to offer
+            if (selected < 0 && !radios.empty()) selected = 0;
             web.setRadios(radios, selected, settings.gain);
             if (!scanError.empty()) std::cerr << scanError << '\n';
         };
