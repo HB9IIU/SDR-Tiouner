@@ -36,6 +36,26 @@ The browser tiles are re-encoded to at most 960x540 H.264 for WebRTC. Next to th
 - Open it in VLC (Media > Open Network Stream > `udp://@127.0.0.1:19000`), `ffplay udp://127.0.0.1:19000`, OBS, or record it with `ffmpeg -i udp://127.0.0.1:19000 -c copy out.ts`.
 - `multi-receiver.ini`: `udp_output=1` (0 turns it off), `udp_host=127.0.0.1` (another IPv4 address, such as a PC on the LAN or a multicast group, sends it there), `udp_port_base=19000`.
 - The stream starts when the channel is started and restarts by itself after a retune.
+## Recording
+
+The **Record** button in the menu (on the Receiver and on the Auto Monitor page) writes the original transport stream of every running channel to `.ts` files in the `recordings` folder next to the program. There is one file per channel and tuning, named with the date, the frequency and the name of the station, and VLC plays it. The folder button next to Record opens the folder.
+
+- The beacon is not recorded, because it runs all day.
+- Recording stops by itself when less than 1 GB of disk is free, and it never starts by itself.
+- Recordings of other people's transmissions are for your own use.
+
+## TS Diagnostics
+
+Every card has a collapsed **TS Diagnostics** section. It shows the bitrate and, for the last 10 seconds and in total, the lost frames, the CRC errors, the continuity errors and the TEI packets, and the time of the last error. The dot is green when there was no error in the last 10 seconds, yellow for 1 to 9, red for 10 or more, and grey when there is no data.
+
+If a picture shows blocks or a mosaic while all the counters stay at 0, the damage happens after the receiver, in the video conversion or in the browser. If the counters rise at the same moment, the signal was too weak. A clean transport stream does not prove that the picture is clean.
+
+## Updates
+
+A few seconds after the start, the program asks GitHub which release is the latest. If yours is older, the menu shows "Update x.y.z available", with a link to the release page. It downloads nothing and sends nothing about you. `check_updates=0` in `multi-receiver.ini` switches it off.
+
+To update, extract the new zip into a new folder and copy your old `multi-receiver.ini` into it, so that you keep your radio, your calibration and your settings.
+
 ## Airspy R2 / Mini
 
 The Airspy R2 and Mini are driven natively (`core/src/source_airspy.cpp`); the package carries `libairspy.dll` (libairspy 1.0.10 with the close-order patch, `tools/package/patches/`) next to its libusb. Install the WinUSB driver once with Zadig (choose the Airspy, driver WinUSB). Close SDR# or any other program that has the radio open first.
@@ -48,7 +68,7 @@ The Airspy R2 and Mini are driven natively (`core/src/source_airspy.cpp`); the p
 
 ## Configuration and architecture
 
-`multi-receiver.ini` beside the executable sets the pool cap (`max_channels`, 8 by default), shared sample rate, IF centre, LNB LO, frequency correction, gain, ports, and a list of channels. Channel parameters changed through the web page are saved there. Hardware always requires **Start receiving**; it does not auto-start on launch. Advanced antenna power is off. Select the antenna entry matching the cable connection.
+`multi-receiver.ini` beside the executable sets the pool cap (`max_channels`, 8 by default), shared sample rate, IF centre, LNB LO, frequency correction, gain, ports, and a list of channels. The `channel=` lines are the start list: at every start the channels come back on it (the first **Start receiving** then places them on the beacon and the strongest stations above it), whatever was tuned while the program ran. The radio used last, the calibrations and the Stream out address are saved there too. Hardware always requires **Start receiving**; it does not auto-start on launch. Advanced antenna power is off. Select the antenna entry matching the cable connection.
 
 - One `IqSource` opens the radio once, with a fixed 745 MHz IF centre and requested 10 Msps. With a 9750 MHz LNB, the nominal sampled span is satellite 10490–10500 MHz. The hardware's actual sample rate is checked. Usable RF bandwidth and attenuation at the edges must be checked with the RSP and LNB.
 - `MultiReceiver` allocates channel objects from a configurable pool. IDs, status, publisher ports and cards are data driven. The two generated test carriers are test fixtures, not the production channel architecture.
@@ -61,7 +81,7 @@ Audio starts muted because of browser autoplay policy. Each card has a Sound/Mut
 
 ## Validation and limits
 
-This is a beta (0.1.0-beta.1), not a claim that the requirements are fully accepted. Two synthetic RF carriers, browser pictures/audio tracks, independent channel stop/retune, API protections, pool limits, and resource samples can be tested locally. Live QO-100 acceptance requires two actual carriers on the connected SDRplay. CPU <25% of the whole PC, receiver/helper RAM <500 MB, end-to-end latency <3 s, and a one-hour run without growth/dropouts must be measured with representative live transmissions; video resolution, symbol rate, RF conditions and FEC workload affect these results.
+This is an early version (0.1.x), not a claim that the requirements are fully accepted. Two synthetic RF carriers, browser pictures/audio tracks, independent channel stop/retune, API protections, pool limits, and resource samples can be tested locally. Live QO-100 acceptance requires two actual carriers on the connected SDRplay. CPU <25% of the whole PC, receiver/helper RAM <500 MB, end-to-end latency <3 s, and a one-hour run without growth/dropouts must be measured with representative live transmissions; video resolution, symbol rate, RF conditions and FEC workload affect these results.
 
 For repeatable resource acceptance, the proposed 500 MB budget covers the receiver and its managed FFmpeg/MediaMTX helpers. Browser CPU/RAM and the combined total are reported separately. Working-set totals can count shared DLL pages more than once, so the report states the metric rather than treating it as exact whole-system memory use.
 

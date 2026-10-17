@@ -14,7 +14,7 @@ The **Auto Monitor** page (`/monitor`) works on its own: it starts the radio, sh
 
 ![Auto Monitor with four stations found by itself](docs/images/auto-monitor.png)
 
-Every running channel is also sent as the untouched transport stream over UDP, so you can open it in VLC or OBS or record it, like with the MiniTiouner.
+Every running channel is also sent as the untouched transport stream over UDP, so you can open it in VLC or OBS or record it, like with the MiniTiouner. The Record button in the menu does that for you: it writes the stream of every running channel (except the beacon) to a `recordings` folder.
 
 The pages can also be opened from another PC on the same network, see [LAN_VIEWING.md](LAN_VIEWING.md).
 
