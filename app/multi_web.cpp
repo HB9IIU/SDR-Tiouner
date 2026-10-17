@@ -54,6 +54,27 @@ void timeout(sock_t socket) {
     setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, &value, sizeof value);
 #endif
 }
+// True when SDR-Tiouner itself answers on this port: a second copy was started.
+bool answersAsSdrTiouner(int port) {
+    sock_t probe = socket(AF_INET, SOCK_STREAM, 0); if (probe == kBadSock) return false;
+    timeout(probe);
+    sockaddr_in address{}; address.sin_family = AF_INET; address.sin_addr.s_addr = htonl(INADDR_LOOPBACK); address.sin_port = htons(port);
+    bool found = false;
+    if (connect(probe, (sockaddr*)&address, sizeof address) == 0) {
+        const std::string request = "GET /api/state HTTP/1.0\r\nHost: 127.0.0.1:" + std::to_string(port) + "\r\n\r\n";
+        if (send(probe, request.data(), (int)request.size(), 0) > 0) {
+            std::string reply; char piece[256];   // the headers and the body may arrive in separate pieces
+            for (int i = 0; i < 6 && reply.size() < 400 && !found; ++i) {
+                const int got = recv(probe, piece, sizeof piece, 0);
+                if (got <= 0) break;
+                reply.append(piece, got);
+                found = reply.find("{\"version\":\"") != std::string::npos;
+            }
+        }
+    }
+    sockClose(probe);
+    return found;
+}
 double jsonNumber(double value) { return std::isfinite(value) ? value : 0; }
 }
 struct MultiWeb::Impl {
@@ -297,7 +318,10 @@ bool MultiWeb::start(int port, int videoBase, std::string& error) {
     p_->listener = socket(AF_INET, SOCK_STREAM, 0); sockaddr_in address{};
     address.sin_family = AF_INET; address.sin_addr.s_addr = htonl(INADDR_ANY); address.sin_port = htons(port);
     if (p_->listener == kBadSock || bind(p_->listener, (sockaddr*)&address, sizeof address) != 0 || listen(p_->listener, 16) != 0) {
-        error = "Cannot open local web port " + std::to_string(port); if (p_->listener != kBadSock) sockClose(p_->listener); p_->listener = kBadSock; return false;
+        if (p_->listener != kBadSock) sockClose(p_->listener); p_->listener = kBadSock;
+        error = answersAsSdrTiouner(port) ? "Already running at http://127.0.0.1:" + std::to_string(port) + "/ : use that one, or close it first."
+                                          : "Cannot open local web port " + std::to_string(port) + " (another program may be using it)";
+        return false;
     }
     p_->running = true;
     p_->batc.start();

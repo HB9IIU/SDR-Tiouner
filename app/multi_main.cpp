@@ -220,7 +220,10 @@ int main(int argc, char** argv) {
         for (const auto& channel : settings.channels)   // a saved channel outside this capture is left out, not a reason to stop
             if (!receiver.create(channel)) std::cerr << "Channel at " << channel.satelliteMhz << " MHz does not fit the IQ capture: left out" << std::endl;
         MultiWeb web(receiver); std::string error;
-        if (!web.start(settings.port, settings.videoBase, error)) throw std::runtime_error(error);
+        if (!web.start(settings.port, settings.videoBase, error)) {
+            if (open && error.rfind("Already running", 0) == 0) openUrl("http://127.0.0.1:" + std::to_string(settings.port) + "/");   // a second double-click: show the one that runs
+            throw std::runtime_error(error);
+        }
         web.setUdpSettings(settings.udpOutput, settings.udpHost, settings.udpBase);
         std::vector<DeviceInfo> radios;
         int selected = -1;
