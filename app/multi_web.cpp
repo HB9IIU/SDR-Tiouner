@@ -76,7 +76,7 @@ struct MultiWeb::Impl {
     std::map<unsigned, std::string> publishers, udpOutputs;
     bool udpEnabled = true; std::string udpHost = "127.0.0.1"; int udpBase = 19000;
     std::string calibration = "{\"state\":\"none\"}", load = "{}", autoMonitor = "{\"enabled\":false,\"message\":\"Stopped\",\"cards\":[],\"candidates\":[]}";
-    int selected = -1;
+    int selected = -1; bool radiosScanned = false;   // false until the first scan of the radios has finished
     double gain = 30;
     std::string message;
     std::string notice;
@@ -127,7 +127,7 @@ struct MultiWeb::Impl {
         out << "],\"batcConnected\":" << (batc.isConnected() ? "true" : "false");
         { std::lock_guard<std::mutex> lock(mutex);
           out << ",\"autoMonitor\":" << autoMonitor;
-          out << ",\"selectedRadio\":" << selected << ",\"gain\":" << gainState.gain << ",\"autoGain\":" << (gainState.automatic ? "true" : "false")
+          out << ",\"radiosScanned\":" << (radiosScanned ? "true" : "false") << ",\"selectedRadio\":" << selected << ",\"gain\":" << gainState.gain << ",\"autoGain\":" << (gainState.automatic ? "true" : "false")
               << ",\"gainAvailable\":" << (gainState.available ? "true" : "false") << ",\"gainMin\":" << gainState.minimum
               << ",\"gainMax\":" << gainState.maximum << ",\"overloadEvents\":" << gainState.overloads
               << ",\"gainStatus\":\"" << escape(gainState.status) << "\",\"gainDetail\":\"" << escape(gainState.detail) << "\",\"noticeSeq\":" << noticeSeq << ",\"noticeCentred\":" << (noticeCentred ? "true" : "false") << ",\"notice\":\"" << escape(notice) << "\",\"message\":\"" << escape(message)
@@ -332,7 +332,7 @@ bool MultiWeb::takeCommand(MultiCommand& command) {
     std::lock_guard<std::mutex> lock(p_->mutex); if (p_->commands.empty()) return false;
     command = p_->commands.front(); p_->commands.pop_front(); return true;
 }
-void MultiWeb::setRadios(const std::vector<DeviceInfo>& radios, int selected, double gain) { std::lock_guard<std::mutex> lock(p_->mutex); p_->radios = radios; p_->selected = selected; p_->gain = gain; }
+void MultiWeb::setRadios(const std::vector<DeviceInfo>& radios, int selected, double gain) { std::lock_guard<std::mutex> lock(p_->mutex); p_->radios = radios; p_->selected = selected; p_->radiosScanned = true; p_->gain = gain; }
 void MultiWeb::setMessage(const std::string& message) { std::lock_guard<std::mutex> lock(p_->mutex); p_->message = message; }
 void MultiWeb::setNotice(const std::string& text, bool centred) { std::lock_guard<std::mutex> lock(p_->mutex); p_->notice = text; p_->noticeCentred = centred; ++p_->noticeSeq; }
 void MultiWeb::setPublisher(unsigned id, const std::string& status) { std::lock_guard<std::mutex> lock(p_->mutex); p_->publishers[id] = status; }
