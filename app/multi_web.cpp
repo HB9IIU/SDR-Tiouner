@@ -225,6 +225,12 @@ struct MultiWeb::Impl {
                 else {
                     if (!std::isfinite(id) || id < 1 || id > 100000 || id != std::floor(id)) { reply(400, "text/plain", "Invalid channel ID"); return; }
                     command.action = MultiCommand::ChannelSet; command.id = (unsigned)id;
+                    // two running channels must not receive the same station
+                    if (enabled == 1)
+                        for (const auto& other : receiver.channels())
+                            if (other.id != command.id && other.config.enabled && std::fabs(other.config.satelliteMhz - frequency) < 0.05) {
+                                reply(409, "text/plain", "Channel " + std::to_string(other.id) + " is already on this station"); return;
+                            }
                 }
             } else if (path == "/api/udp") {
                 // where the untouched TS goes: an IPv4 address (this PC, another PC, or a multicast group) and the first port
