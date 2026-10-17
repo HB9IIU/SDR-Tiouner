@@ -1,8 +1,10 @@
-// Records the untouched MPEG transport stream of every running channel to a .ts file (VLC plays it): no re-encoding, no work for the decoders.
+// Records the untouched MPEG transport stream of every running channel (except the beacon, which runs all day) to a .ts file (VLC plays it): no re-encoding, no work for the decoders.
 // The files go to one folder, one per channel and tuning: a retune or a lost station ends its file, a new one starts for the next tuning.
 #pragma once
+#include "auto_monitor.h"
 #include "dect2/multi_receiver.h"
 #include <atomic>
+#include <cmath>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -38,7 +40,7 @@ public:
             if (!ec && space.available < kMinFreeBytes) { std::lock_guard<std::mutex> lock(mutex_); problem_ = "Recording stopped: the disk is almost full."; }
         }
         for (const auto& channel : receiver.channels()) {
-            const bool want = enabled && receiver.running() && channel.config.enabled && problem().empty();
+            const bool want = enabled && receiver.running() && channel.config.enabled && !isBeacon(channel.config) && problem().empty();
             auto found = writers_.find(channel.id);
             if (!want) {
                 if (found != writers_.end()) { found->second->stop = true; if (found->second->th.joinable()) found->second->th.join(); writers_.erase(found); }
@@ -74,6 +76,11 @@ public:
 
 private:
     static constexpr uint64_t kMinFreeBytes = 1ull << 30;   // stop when less than 1 GB is free
+
+    // The beacon runs 24 hours a day: it is not recorded
+    static bool isBeacon(const dect2::ChannelConfig& config) {
+        return std::abs(config.satelliteMhz - kBeaconMhz) < 0.05 && std::abs(config.symbolRate - kBeaconRate) < 0.1 * kBeaconRate;
+    }
 
     struct Writer {
         std::thread th;
