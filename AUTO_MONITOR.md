@@ -5,9 +5,9 @@ Open **Auto Monitor** (http://127.0.0.1:47321/monitor with the default port). It
 How it works:
 
 1. The first card is the beacon (10491.500 MHz, 1500 kS/s), shown at once.
-2. The backend scans the BATC spectrum once a second, only above the beacon (from 10492.0 MHz).
+2. The backend scans the BATC spectrum continuously, only above the beacon (from 10492.0 MHz).
 3. A candidate must remain visible over three checks. Its frequency and symbol rate are estimated from the spectrum, and a new decoder and a new card are created for it (standard selection is automatic).
-4. A card whose signal disappears stays on screen marked **LOST**, and its decoder is released. After 45 seconds the same card is reused if the signal returns.
+4. A card whose signal disappears stays on screen marked **LOST** for 5 seconds, then it goes and its decoder is released. That carrier is tried again after a pause of 10 seconds, and it gets a new card if the signal is back.
 
 There is no fixed number of cards: a decoder is created for every station found, up to `max_channels` in `multi-receiver.ini` (default 8, maximum 16). Each decoder costs CPU/GPU and a video encoder. The scanner runs in the backend, so it continues when the page is closed.
 

@@ -28,7 +28,7 @@ SDR-Tiouner is a modified version of OnAir by adswill and the OnAir contributors
 
 The receiver, player and signal processing are theirs. The changes made for SDR-Tiouner (the multi-channel receiver and its web page, the
 Auto Monitor, the Airspy R2 driver, the stream-out, calibration and load display, the packaging scripts) are published here, with the
-complete source of every release (the tag of this version is v0.1.0):
+complete source of every release (each release has its own tag):
 
     https://github.com/HB9IIU/SDR-Tiouner
 
@@ -45,7 +45,7 @@ To get the source code, open an issue at
 
 or use the Releases page of that repository, which carries the source of every version.
 
-Please quote the version: SDR-Tiouner, package built October 2026.
+Please quote the version number of SDR-Tiouner: it is shown in the header of the page.
 
 THIRD-PARTY COMPONENTS
 ----------------------

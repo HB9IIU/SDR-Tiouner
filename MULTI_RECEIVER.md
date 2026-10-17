@@ -1,6 +1,6 @@
 # SDR-Tiouner by HB9IIU
 
-SDR-Tiouner is a multi-channel QO-100 DATV receiver for SDR hardware (SDRplay, Airspy R2, HackRF): one wideband radio, several DVB-S/S2 channels decoded and shown at once in the browser. It is meant as a software alternative to the MiniTiouner. The channel pool is dynamic: up to `max_channels` decoders (default 8, set in `multi-receiver.ini`).
+SDR-Tiouner is a multi-channel QO-100 DATV receiver for SDR hardware (for example SDRplay, Airspy R2, HackRF, PlutoSDR and LimeSDR Mini): one wideband radio, several DVB-S/S2 channels decoded and shown at once in the browser. It is meant as a software alternative to the MiniTiouner. The channel pool is dynamic: up to `max_channels` decoders (default 8, set in `multi-receiver.ini`).
 
 
 ## Free of charge, not for sale
@@ -16,7 +16,7 @@ The GNU General Public License (`LICENSE.txt`) lets anyone charge a fee for a co
 
 Run `Start SDR-Tiouner.cmd` in the package folder (or `SDR-Tiouner.exe`).
 
-The browser opens at `http://127.0.0.1:47321`. Close the other receiver before starting the same SDRplay in SDR-Tiouner. Choose the appropriate SDRplay antenna entry, set gain, and press **Start receiving**. Enter the frequency and symbol rate for each carrier, then press **Start** on each channel. **Retune** and **Stop** affect only their channel. The BATC spectrum is at the top: select a channel below it and click a transmission to tune that channel, with an estimated symbol rate. The received SDR spectrum and waterfall remain below the radio controls. Press **Sound** on the video you want to hear. **Close** exits the backend and its helper processes.
+The browser opens at `http://127.0.0.1:47321`. Close the other receiver before starting the same SDRplay in SDR-Tiouner. Choose your radio in the Radio window and press **Start receiving** (the gain is automatic). Enter the frequency and symbol rate for each carrier, then press **Start** on each channel. **Retune** and **Stop** affect only their channel. The BATC spectrum is at the top: select a channel below it and click a transmission to tune that channel, with an estimated symbol rate. The received SDR spectrum and waterfall remain below the radio controls. Click the speaker icon on the video you want to hear. **Quit** (top right) exits the program and its helper processes.
 
 To exercise two generated RF carriers without touching a radio:
 
@@ -70,26 +70,24 @@ The Airspy R2 and Mini are driven natively (`core/src/source_airspy.cpp`); the p
 
 `multi-receiver.ini` beside the executable sets the pool cap (`max_channels`, 8 by default), shared sample rate, IF centre, LNB LO, frequency correction, gain, ports, and a list of channels. The `channel=` lines are the start list: at every start the channels come back on it (the first **Start receiving** then places them on the beacon and the strongest stations above it), whatever was tuned while the program ran. The radio used last, the calibrations and the Stream out address are saved there too. Hardware always requires **Start receiving**; it does not auto-start on launch. Advanced antenna power is off. Select the antenna entry matching the cable connection.
 
-- One `IqSource` opens the radio once, with a fixed 745 MHz IF centre and requested 10 Msps. With a 9750 MHz LNB, the nominal sampled span is satellite 10490–10500 MHz. The hardware's actual sample rate is checked. Usable RF bandwidth and attenuation at the edges must be checked with the RSP and LNB.
+- One `IqSource` opens the radio once and asks for 10 Msps. With a 9750 MHz LNB, that is a window of about 9.8 MHz of the band. The rate the radio can really keep up with is measured at the start: a slower link (a Pluto over USB 2 or Ethernet, an RTL-SDR) gets a narrower window, which you place with the three buttons above the local spectrum. A channel outside the window says so on its card and decodes nothing.
 - `MultiReceiver` allocates channel objects from a configurable pool. IDs, status, publisher ports and cards are data driven. The two generated test carriers are test fixtures, not the production channel architecture.
 - Immutable shared IQ blocks feed bounded per-channel queues. Each worker reuses the existing DVB-S DSP mixer/half-band filters for digital downconversion and decimation, then runs an independent `DvbsReceiver` and TS demux. The existing receiver requires at least 2 Msps at its input, so decimation stops above that limit.
 - The backend's per-channel FFmpeg processes decode MPEG-TS and encode browser-compatible H.264/Opus (up to 960×540, two decoder/encoder threads). Each has an isolated MediaMTX WebRTC publisher. The browser renders and plays; it performs no DATV demodulation.
 - A channel's stop/retune closes only its TS subscribers and restarts only its publisher. Capture tuning and other workers are untouched. Bounded IQ/TS queues prevent an overloaded channel or disconnected browser from accumulating unlimited memory. Software exceptions in a channel are contained; an OS/process crash or shared-radio failure can still affect the backend.
-- The page displays the actual received-band spectrum and a bounded canvas waterfall. It does not substitute the internet BATC spectrum.
+- The page shows the BATC spectrum of the whole band at the top, with the radio window marked on it, and below it the spectrum and waterfall of what the radio receives. Only the BATC spectrum supports click-to-tune.
 
 Audio starts muted because of browser autoplay policy. Each card has a Sound/Mute toggle. Modulation/FEC are automatic; standard can be automatic, DVB-S, or DVB-S2.
 
-## Validation and limits
+## Limits and tests
 
-This is an early version (0.1.x), not a claim that the requirements are fully accepted. Two synthetic RF carriers, browser pictures/audio tracks, independent channel stop/retune, API protections, pool limits, and resource samples can be tested locally. Live QO-100 acceptance requires two actual carriers on the connected SDRplay. CPU <25% of the whole PC, receiver/helper RAM <500 MB, end-to-end latency <3 s, and a one-hour run without growth/dropouts must be measured with representative live transmissions; video resolution, symbol rate, RF conditions and FEC workload affect these results.
+This is an early version (0.1.x). The decoding is OnAir's. What SDR-Tiouner adds (the multi-channel receiver and the pages) was tested with synthetic carriers and on the author's own setup, mostly with a HackRF, and less with the other radios. The video conversion for the browser (FFmpeg) is the biggest part of the CPU load, and it only runs while pictures are shown.
 
-For repeatable resource acceptance, the proposed 500 MB budget covers the receiver and its managed FFmpeg/MediaMTX helpers. Browser CPU/RAM and the combined total are reported separately. Working-set totals can count shared DLL pages more than once, so the report states the metric rather than treating it as exact whole-system memory use.
-
-Build with `bash tools/package/make_multi_windows.sh`. Automated integration checks use `tools/test_multi_receiver.py --duration 600`; use `--duration 3600` for a one-hour synthetic soak. Tests use a separate port set, temporary settings and synthetic input, and leave physical radios alone. The test reports backend/helper CPU and memory separately from Chromium, checks advancing pictures and records IQ drops. Synthetic generator CPU is included in the backend measurement; this is not a live RF measurement.
+Build with `bash tools/package/make_multi_windows.sh`. The unit tests run with `ctest --test-dir build-windows`. `python tools/test_auto_monitor.py` is an end-to-end check of the Auto Monitor with synthetic carriers (it needs Playwright and Chrome) and never opens a physical radio.
 
 Useful references: [SDRplay instantaneous bandwidth illustration](https://www.sdrplay.com/docs/Hamcation2024slides.pdf), [MediaMTX browser playback](https://mediamtx.org/docs/usage/read).
 
-Shared gain defaults to Auto. It monitors the whole received band and SDRplay RF-overload reports, reduces gain quickly during overload, and raises it slowly with headroom. Select Manual, enter a gain and press Apply gain to change it while capture runs. Gain updates keep the capture centre and channel parameters unchanged. The receiver spectrum/waterfall are display-only; only the BATC spectrum supports click-to-tune.
+The gain is automatic and is not set by hand. It monitors the whole received band and the radio's overload reports, reduces the gain quickly during overload, and raises it slowly with headroom. The receiver spectrum and waterfall are display-only; only the BATC spectrum supports click-to-tune.
 
 Spectrum alignment: both plots use the actual RX centre and sample rate, including frequency calibration. BATC data occupies its true 10490.5–10499.5 MHz interval on that shared scale; blank margins contain no BATC data and cannot be clicked to tune.
 

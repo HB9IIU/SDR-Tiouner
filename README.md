@@ -95,7 +95,7 @@ I wrote this with a lot of help from Claude (Anthropic) as a coding assistant.
 
 ## Licence
 
-GNU General Public License v3.0 or later, the same as OnAir, see [LICENSE](LICENSE). The package contains a written offer of the source in [SOURCE-OFFER.txt](SOURCE-OFFER.txt).
+GNU General Public License v3.0 or later, the same as OnAir, see [LICENSE](LICENSE). The complete source code is in this repository. The zip also carries [SOURCE-OFFER.txt](SOURCE-OFFER.txt), which says where to get the source, so that a copy of the zip passed on without this page still points to it.
 
 It is free of charge and not for sale. The GPL would allow someone to sell copies, so this is just my wish and not an extra condition: if anybody asks you to pay for it, please don't, and let me know.
 
