@@ -99,7 +99,7 @@ Settings load(const fs::path& path) {
     if (settings.channels.size() > settings.capture.maxChannels) throw std::runtime_error("Configured channel count exceeds max_channels");
     return settings;
 }
-void save(const fs::path& path, const Settings& settings, const MultiReceiver& receiver, const std::vector<ChannelStatus>* original = nullptr) {
+void save(const fs::path& path, const Settings& settings) {
     std::ofstream out(path); out.precision(12);
     out << "# SDR-Tiouner settings. Frequencies are satellite MHz.\n"
         << "max_channels=" << settings.capture.maxChannels << "\nsample_rate=" << settings.capture.sampleRate
@@ -110,7 +110,8 @@ void save(const fs::path& path, const Settings& settings, const MultiReceiver& r
         << "\nudp_output=" << (settings.udpOutput ? 1 : 0) << "\nudp_host=" << settings.udpHost << "\nudp_port_base=" << settings.udpBase << '\n';
     if (!settings.lastRadio.empty()) out << "radio=" << settings.lastRadio << '\n';
     for (const auto& c : settings.calibrations) out << "calibration=" << c.key << ',' << c.correctionHz << ',' << c.when << '\n';
-    for (const auto& channel : original ? *original : receiver.channels()) out << "channel=" << channel.config.satelliteMhz << ',' << channel.config.symbolRate / 1000 << ',' << channel.config.standard << '\n';
+    // the start list of the file stays as it is: at every start the channels come back on it, whatever was tuned while the program ran
+    for (const auto& channel : settings.channels) out << "channel=" << channel.satelliteMhz << ',' << channel.symbolRate / 1000 << ',' << channel.standard << '\n';
     if (!out) throw std::runtime_error("Cannot save " + path.string());
 }
 // How a radio is told apart in the settings: its serial, else its name (no commas or line ends: it is a field of the .ini)
@@ -214,7 +215,7 @@ int main(int argc, char** argv) {
         }
         MultiReceiver receiver(settings.capture);
         AutoMonitor autoMonitor;
-        auto persist = [&] { save(configPath,settings,receiver,autoMonitor.enabled ? &autoMonitor.saved : nullptr); };
+        auto persist = [&] { save(configPath,settings); };
         receiver.setGain(settings.automaticGain,settings.gain);
         for (const auto& channel : settings.channels)   // a saved channel outside this capture is left out, not a reason to stop
             if (!receiver.create(channel)) std::cerr << "Channel at " << channel.satelliteMhz << " MHz does not fit the IQ capture: left out" << std::endl;
