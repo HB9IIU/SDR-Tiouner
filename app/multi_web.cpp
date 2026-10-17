@@ -109,6 +109,8 @@ struct MultiWeb::Impl {
                 << "\",\"fec\":\"" << escape(tel.codeRate) << "\",\"standard\":" << tel.standard
                 << ",\"service\":\"" << escape(name) << "\",\"provider\":\"" << escape(provider) << "\",\"bitrate\":" << jsonNumber(tel.netBitrate)
                 << ",\"packets\":" << tel.packets << ",\"droppedSamples\":" << ch.droppedSamples
+                << ",\"tsPackets\":" << ch.transport.totalPackets << ",\"tsCc\":" << ch.transport.ccErrors << ",\"tsTei\":" << ch.transport.teiPackets
+                << ",\"lostFrames\":" << (tel.standard == 1 ? tel.rsFailed : tel.bchBad) << ",\"crcErrors\":" << tel.crcErrors
                 << ",\"outputRate\":" << ch.outputRate << ",\"videoPort\":" << videoBase + ch.id - 1
                 << ",\"error\":\"" << escape(ch.error) << "\",\"publisher\":\"" << escape(publisherCopy[ch.id]) << "\",\"udp\":\"" << escape(udpCopy[ch.id]) << "\"}";
         }
