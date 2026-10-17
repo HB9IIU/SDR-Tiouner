@@ -2,6 +2,7 @@
 #include "multi_web.h"
 #include "auto_monitor.h"
 #include "multi_udp.h"
+#include "multi_record.h"
 #include "multi_load.h"
 #include "browser_stream.h"
 #include "dect2/open_url.h"
@@ -267,6 +268,9 @@ int main(int argc, char** argv) {
         if (open) openUrl(url);
         std::map<unsigned, std::unique_ptr<Publisher>> publishers;
         UdpTsOutputs udpOutputs;   // declared after the receiver: its senders end first
+        TsRecorder recorder;       // the same for its writers
+        bool recording = false;    // the Record button: not remembered, a new start never begins by recording
+        const fs::path recordDir = executable / "recordings";
         CalibrationRun calibration;
         LoadMeter loadMeter;
         auto nextLoad = std::chrono::steady_clock::now();
@@ -283,7 +287,7 @@ int main(int argc, char** argv) {
                     command.action = MultiCommand::RadioStart; command.device = selected; command.gain = settings.gain; autoAfterStart = true;
                 }
                 if (autoMonitor.enabled && command.action != MultiCommand::AutoStart && command.action != MultiCommand::AutoStop &&
-                    command.action != MultiCommand::GainSet && command.action != MultiCommand::UdpSet) autoMonitor.stop(receiver);
+                    command.action != MultiCommand::GainSet && command.action != MultiCommand::UdpSet && command.action != MultiCommand::RecordSet) autoMonitor.stop(receiver);
                 if (command.action == MultiCommand::AutoStart) {
                     if (calibration.phase) error = "Wait for calibration to finish";
                     else autoMonitor.start(receiver);
@@ -427,6 +431,9 @@ int main(int argc, char** argv) {
                     udpOutputs.stopAll();   // the senders start again, to the new address, on the next pass
                     web.setUdpSettings(settings.udpOutput, settings.udpHost, settings.udpBase); persist();
                     web.setMessage(settings.udpOutput ? "Stream out to " + settings.udpHost + ":" + std::to_string(settings.udpBase) : std::string("Stream out switched off"));
+                } else if (command.action == MultiCommand::RecordSet) {
+                    recording = command.record && receiver.running();
+                    web.setMessage(recording ? "Recording the transport streams to " + recordDir.generic_string() : std::string("Recording stopped"));
                 } else if (command.action == MultiCommand::ChannelCreate) {
                     if (!receiver.create(command.channel)) error = "Channel pool is full or the carrier falls outside the capture";
                     else { persist(); web.setMessage("Channel created"); }
@@ -539,8 +546,12 @@ int main(int argc, char** argv) {
             }
             udpOutputs.service(receiver, settings.udpHost, settings.udpBase, settings.udpOutput);
             for (const auto& channel : receiver.channels()) web.setUdpOutput(channel.id, udpOutputs.address(channel.id));
+            if (recording && !receiver.running()) recording = false;   // the radio stopped: nothing left to record
+            recorder.service(receiver, recording, recordDir);
+            if (recording && !recorder.problem().empty()) { web.setNotice(recorder.problem()); recording = false; recorder.service(receiver, false, recordDir); }
+            web.setRecording(recorder.json(recording, recordDir));
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        udpOutputs.stopAll(); publishers.clear(); web.stop(); receiver.stop(); return 0;
+        recorder.stopAll(); udpOutputs.stopAll(); publishers.clear(); web.stop(); receiver.stop(); return 0;
     } catch (const std::exception& e) { std::cerr << "SDR-Tiouner: " << e.what() << '\n'; return 1; }
 }

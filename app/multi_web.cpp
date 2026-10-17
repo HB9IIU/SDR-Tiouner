@@ -96,6 +96,7 @@ struct MultiWeb::Impl {
     std::vector<DeviceInfo> radios;
     std::map<unsigned, std::string> publishers, udpOutputs;
     bool udpEnabled = true; std::string udpHost = "127.0.0.1"; int udpBase = 19000;
+    std::string recording = "{\"on\":false}";
     std::string calibration = "{\"state\":\"none\"}", load = "{}", autoMonitor = "{\"enabled\":false,\"message\":\"Stopped\",\"cards\":[],\"candidates\":[]}";
     int selected = -1; bool radiosScanned = false;   // false until the first scan of the radios has finished
     double gain = 30;
@@ -154,7 +155,7 @@ struct MultiWeb::Impl {
               << ",\"gainAvailable\":" << (gainState.available ? "true" : "false") << ",\"gainMin\":" << gainState.minimum
               << ",\"gainMax\":" << gainState.maximum << ",\"overloadEvents\":" << gainState.overloads
               << ",\"gainStatus\":\"" << escape(gainState.status) << "\",\"gainDetail\":\"" << escape(gainState.detail) << "\",\"noticeSeq\":" << noticeSeq << ",\"noticeCentred\":" << (noticeCentred ? "true" : "false") << ",\"notice\":\"" << escape(notice) << "\",\"message\":\"" << escape(message)
-              << "\",\"udpEnabled\":" << (udpEnabled ? "true" : "false") << ",\"udpHost\":\"" << escape(udpHost) << "\",\"udpBase\":" << udpBase << ",\"correctionHz\":" << config.correctionHz << ",\"calibration\":" << calibration << ",\"load\":" << load << ",\"radios\":[";
+              << "\",\"udpEnabled\":" << (udpEnabled ? "true" : "false") << ",\"udpHost\":\"" << escape(udpHost) << "\",\"udpBase\":" << udpBase << ",\"correctionHz\":" << config.correctionHz << ",\"calibration\":" << calibration << ",\"load\":" << load << ",\"recording\":" << recording << ",\"radios\":[";
           for (size_t i = 0; i < radios.size(); ++i) out << (i ? "," : "") << "{\"id\":" << i << ",\"name\":\"" << escape(radios[i].name) << "\"}";
           out << "]}"; }
         return out.str();
@@ -265,6 +266,11 @@ struct MultiWeb::Impl {
             } else if (path == "/api/calibrate") {
                 if (!receiver.running()) { reply(409, "text/plain", "Start receiving first: the calibration needs the beacon"); return; }
                 command.action = MultiCommand::Calibrate;
+            } else if (path == "/api/record") {
+                const double enabled = number("enabled");
+                if (enabled != 0 && enabled != 1) { reply(400, "text/plain", "Invalid recording switch"); return; }
+                if (enabled == 1 && !receiver.running()) { reply(409, "text/plain", "Start receiving first: there is nothing to record"); return; }
+                command.action = MultiCommand::RecordSet; command.record = enabled == 1;
             } else if (path == "/api/auto/start") command.action = MultiCommand::AutoStart;
             else if (path == "/api/auto/stop") command.action = MultiCommand::AutoStop;
             else if (path == "/api/shutdown") command.action = MultiCommand::Shutdown;
@@ -368,3 +374,4 @@ void MultiWeb::setCalibration(const std::string& json) { std::lock_guard<std::mu
 void MultiWeb::setUdpSettings(bool enabled, const std::string& host, int basePort) { std::lock_guard<std::mutex> lock(p_->mutex); p_->udpEnabled = enabled; p_->udpHost = host; p_->udpBase = basePort; }
 std::vector<uint16_t> MultiWeb::batcFrame() const { return p_->batc.latest(); }
 void MultiWeb::setAutoMonitor(const std::string& json) { std::lock_guard<std::mutex> lock(p_->mutex); p_->autoMonitor=json; }
+void MultiWeb::setRecording(const std::string& json) { std::lock_guard<std::mutex> lock(p_->mutex); p_->recording = json; }

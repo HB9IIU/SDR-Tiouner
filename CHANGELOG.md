@@ -11,6 +11,9 @@ Smarter start, clearer messages, and a way to see where picture problems come fr
 - **Radios with a narrow window** (a Pluto over a slow link): a channel outside the window says "Outside radio window" instead of showing another station's picture.
 - **TS Diagnostics** on every card, collapsed by default. It shows bitrate, lost frames, CRC, continuity and TEI errors (last 10 s and total) and the time of the last error. A clean transport stream does not prove the picture is clean.
 - **Auto Monitor:** cards in the order of the stations on the spectrum, a taller spectrum, the radio window shown, and a repeated line removed.
+- **Record button** on the Receiver and the Auto Monitor page. It writes the untouched transport stream of every running channel to `.ts` files in a `recordings` folder next to the program (one file per channel and tuning; VLC plays them). The button glows and blinks while it records. It stops by itself when less than 1 GB of disk is free.
+- A second copy of the program now says that it is already running and opens the page of the first one.
+- Auto Monitor: the spectrum is as wide as the cards when they fill two rows.
 - Card messages are centred.
 
 ## 0.1.1 (2026-10-16)

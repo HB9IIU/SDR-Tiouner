@@ -4,7 +4,7 @@
 #include <string>
 
 struct MultiCommand {
-    enum Action { RadioStart, RadioStop, RadioRefresh, ChannelCreate, ChannelSet, GainSet, UdpSet, Calibrate, AlignCapture, Shutdown, AutoStart, AutoStop } action;
+    enum Action { RadioStart, RadioStop, RadioRefresh, ChannelCreate, ChannelSet, GainSet, UdpSet, Calibrate, AlignCapture, Shutdown, AutoStart, AutoStop, RecordSet } action;
     int device = -1;
     unsigned id = 0;
     double gain = 30;
@@ -14,6 +14,7 @@ struct MultiCommand {
     bool udpEnabled = true;          // UdpSet: where the untouched TS of every running channel goes
     std::string udpHost = "127.0.0.1";
     int udpPort = 19000;
+    bool record = false;             // RecordSet: record the transport stream of every running channel to files
 };
 class MultiWeb {
 public:
@@ -36,6 +37,8 @@ public:
     void setLoad(const std::string& json);   // shown on the page, which edits them with /api/udp   // "" = no UDP stream for the channel right now
     std::vector<uint16_t> batcFrame() const;
     void setAutoMonitor(const std::string& json);
+    // The recording as a JSON object, passed through to the page ("recording" in the state)
+    void setRecording(const std::string& json);
 private:
     struct Impl;
     std::unique_ptr<Impl> p_;
