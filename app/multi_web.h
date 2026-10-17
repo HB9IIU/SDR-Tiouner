@@ -4,7 +4,7 @@
 #include <string>
 
 struct MultiCommand {
-    enum Action { RadioStart, RadioStop, RadioRefresh, ChannelCreate, ChannelSet, GainSet, UdpSet, Calibrate, AlignCapture, Shutdown, AutoStart, AutoStop, RecordSet } action;
+    enum Action { RadioStart, RadioStop, RadioRefresh, ChannelCreate, ChannelSet, GainSet, UdpSet, Calibrate, AlignCapture, Shutdown, AutoStart, AutoStop, RecordSet, RecordOpen } action;
     int device = -1;
     unsigned id = 0;
     double gain = 30;

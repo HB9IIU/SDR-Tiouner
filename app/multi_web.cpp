@@ -266,7 +266,8 @@ struct MultiWeb::Impl {
             } else if (path == "/api/calibrate") {
                 if (!receiver.running()) { reply(409, "text/plain", "Start receiving first: the calibration needs the beacon"); return; }
                 command.action = MultiCommand::Calibrate;
-            } else if (path == "/api/record") {
+            } else if (path == "/api/record/open") command.action = MultiCommand::RecordOpen;   // shows the recordings folder on this PC
+            else if (path == "/api/record") {
                 const double enabled = number("enabled");
                 if (enabled != 0 && enabled != 1) { reply(400, "text/plain", "Invalid recording switch"); return; }
                 if (enabled == 1 && !receiver.running()) { reply(409, "text/plain", "Start receiving first: there is nothing to record"); return; }

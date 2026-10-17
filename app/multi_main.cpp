@@ -292,7 +292,7 @@ int main(int argc, char** argv) {
                     command.action = MultiCommand::RadioStart; command.device = selected; command.gain = settings.gain; autoAfterStart = true;
                 }
                 if (autoMonitor.enabled && command.action != MultiCommand::AutoStart && command.action != MultiCommand::AutoStop &&
-                    command.action != MultiCommand::GainSet && command.action != MultiCommand::UdpSet && command.action != MultiCommand::RecordSet) autoMonitor.stop(receiver);
+                    command.action != MultiCommand::GainSet && command.action != MultiCommand::UdpSet && command.action != MultiCommand::RecordSet && command.action != MultiCommand::RecordOpen) autoMonitor.stop(receiver);
                 if (command.action == MultiCommand::AutoStart) {
                     if (calibration.phase) error = "Wait for calibration to finish";
                     else autoMonitor.start(receiver);
@@ -436,6 +436,10 @@ int main(int argc, char** argv) {
                     udpOutputs.stopAll();   // the senders start again, to the new address, on the next pass
                     web.setUdpSettings(settings.udpOutput, settings.udpHost, settings.udpBase); persist();
                     web.setMessage(settings.udpOutput ? "Stream out to " + settings.udpHost + ":" + std::to_string(settings.udpBase) : std::string("Stream out switched off"));
+                } else if (command.action == MultiCommand::RecordOpen) {
+                    std::error_code ignored; fs::create_directories(recordDir, ignored);
+                    fs::path shown = recordDir; shown.make_preferred();
+                    openUrl(shown.string());
                 } else if (command.action == MultiCommand::RecordSet) {
                     const bool was = recording;
                     recording = command.record && receiver.running();
