@@ -4,6 +4,7 @@
 #include "auto_monitor.h"
 #include "dect2/multi_receiver.h"
 #include <atomic>
+#include <cctype>
 #include <cmath>
 #include <chrono>
 #include <cstdint>
@@ -46,7 +47,7 @@ public:
                 if (found != writers_.end()) { found->second->stop = true; if (found->second->th.joinable()) found->second->th.join(); writers_.erase(found); }
                 continue;
             }
-            if (found != writers_.end()) continue;
+            if (found != writers_.end()) { setLabel(*found->second, serviceName(channel)); continue; }   // the name of the station arrives some seconds after the lock
             auto stream = receiver.subscribe(channel.id);
             if (!stream) continue;   // the channel just started: the next pass
             auto writer = std::make_unique<Writer>();
@@ -87,7 +88,30 @@ private:
         std::atomic<bool> stop{false}, done{false};
         std::filesystem::path directory;
         double mhz = 0;
+        std::mutex labelMutex;
+        std::string label;   // the name of the station for the file name, once it is known
     };
+
+    // The name of the station as the cards show it (the first service that has a video stream), made safe for a file name
+    static std::string serviceName(const dect2::ChannelStatus& channel) {
+        for (const auto& service : channel.transport.services) {
+            if (!service.havePmt) continue;
+            bool video = false;
+            for (const auto& stream : service.streams) if (stream.kind == "video") video = true;
+            if (!video) continue;
+            std::string clean;
+            for (unsigned char c : service.name) {
+                if (std::isalnum(c) || c == '-' || c == '.') clean += (char)c;
+                else if (!clean.empty() && clean.back() != '_') clean += '_';
+                if (clean.size() >= 40) break;
+            }
+            while (!clean.empty() && clean.back() == '_') clean.pop_back();
+            return clean;
+        }
+        return {};
+    }
+    static void setLabel(Writer& w, const std::string& name) { std::lock_guard<std::mutex> lock(w.labelMutex); w.label = name; }
+    static std::string label(Writer& w) { std::lock_guard<std::mutex> lock(w.labelMutex); return w.label; }
 
     static std::string stamp() {
         const std::time_t now = std::time(nullptr); std::tm local{};
@@ -104,8 +128,20 @@ private:
 
     void run(Writer& w, std::shared_ptr<dect2::ChannelStream> stream) {
         namespace fs = std::filesystem;
-        std::ofstream out;   // opened with the first packets: a channel that never locks leaves no empty file
-
+        std::ofstream out;   // opened once the station's name is known (at most 10 s after the first packets): a channel that never locks leaves no empty file
+        std::vector<uint8_t> held;   // what came meanwhile
+        std::chrono::steady_clock::time_point firstAt{};
+        bool failed = false;
+        // The first call opens the file, named with the date, the frequency and the station; false when that is not possible.
+        auto open = [&]() {
+            std::error_code ec; fs::create_directories(w.directory, ec);
+            char freq[24]; std::snprintf(freq, sizeof freq, "%.3f", w.mhz);
+            const std::string name = label(w);
+            out.open(w.directory / (stamp() + "_" + freq + "MHz" + (name.empty() ? "" : "_" + name) + ".ts"), std::ios::binary);
+            if (!out) { fail("Recording stopped: cannot write to " + w.directory.generic_string()); failed = true; return false; }
+            files_++;
+            return true;
+        };
         auto lastFlush = std::chrono::steady_clock::now();
         while (!w.stop) {
             std::vector<uint8_t> packets;
@@ -117,16 +153,20 @@ private:
             }
             if (packets.empty()) continue;
             if (!out.is_open()) {
-                std::error_code ec; fs::create_directories(w.directory, ec);
-                char freq[24]; std::snprintf(freq, sizeof freq, "%.3f", w.mhz);
-                out.open(w.directory / (stamp() + "_" + freq + "MHz.ts"), std::ios::binary);
-                if (!out) { fail("Recording stopped: cannot write to " + w.directory.generic_string()); break; }
-                files_++;
+                if (firstAt == std::chrono::steady_clock::time_point{}) firstAt = std::chrono::steady_clock::now();
+                held.insert(held.end(), packets.begin(), packets.end());
+                const bool waited = std::chrono::steady_clock::now() - firstAt > std::chrono::seconds(10) || held.size() > (8u << 20);
+                if (label(w).empty() && !waited) continue;
+                if (!open()) break;
+                packets = std::move(held); held.clear();
             }
             out.write(reinterpret_cast<const char*>(packets.data()), (std::streamsize)packets.size());
             if (!out) { fail("Recording stopped: writing to the disk failed."); break; }
             bytes_ += packets.size();
             if (std::chrono::steady_clock::now() - lastFlush > std::chrono::seconds(1)) { out.flush(); lastFlush = std::chrono::steady_clock::now(); }
+        }
+        if (!out.is_open() && !held.empty() && !failed && open()) {   // it ended while it was still waiting for the name: what came is kept
+            out.write(reinterpret_cast<const char*>(held.data()), (std::streamsize)held.size()); bytes_ += held.size();
         }
         if (out.is_open()) out.close();
         { std::lock_guard<std::mutex> lock(stream->mutex); stream->closed = true; }
