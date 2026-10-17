@@ -128,5 +128,25 @@ int main() {
         CHECK(count(limited.json(),"\"beaconMissing\":true")==1);
     }
     limited.stop(narrow);narrow.stop();
-    puts("PASS: carrier detection, beacon card, scan above beacon, on-demand cards, lost cards, cooldown, stopping without retuning");
+
+    // The start of the receiver page: the strongest stations above the beacon, at most the count asked for, in order of frequency,
+    // and only those that fit the radio's window. The beacon in the frame is the reference.
+    {
+        auto band=frame();                                   // the beacon and a station at 10496.5 MHz (strength 12000)
+        for(int i=3000;i<=3100;++i)band[i]=21000;            // ~10493.55 MHz, strength 11000
+        for(int i=4200;i<=4300;++i)band[i]=16000;            // ~10494.75 MHz, only 46% of the beacon: not worth decoding
+        for(int i=7050;i<=7250;++i)band[i]=21000;            // ~10497.65 MHz, strength 11000
+        for(int i=8000;i<=8150;++i)band[i]=20000;            // ~10498.58 MHz, strength 10000: the weakest of four, left out of three
+        const auto three=pickStartStations(band,3,10495.0,10e6);
+        CHECK(three.size()==3);
+        CHECK(std::abs(three[0].mhz-10493.55)<.05&&std::abs(three[1].mhz-10496.5)<.05&&std::abs(three[2].mhz-10497.65)<.05);   // by frequency
+        for(const auto& s:three)CHECK(std::abs(s.mhz-10498.58)>.1&&std::abs(s.mhz-10494.75)>.1);
+        CHECK(pickStartStations(band,2,10495.0,10e6).size()==2);
+        CHECK(pickStartStations(band,0,10495.0,10e6).empty());
+        CHECK(pickStartStations(band,3,10495.0,2e6).empty());            // a 2 Msps window holds none of them
+        auto noBeacon=band;for(int i=850;i<=1150;++i)noBeacon[i]=10000;
+        CHECK(pickStartStations(noBeacon,3,10495.0,10e6).empty());        // without the beacon there is no reference
+        CHECK(pickStartStations({},3,10495.0,10e6).empty());
+    }
+    puts("PASS: carrier detection, beacon card, scan above beacon, on-demand cards, lost cards, cooldown, stopping without retuning, start stations");
 }

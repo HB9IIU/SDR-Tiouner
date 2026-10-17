@@ -266,6 +266,7 @@ int main(int argc, char** argv) {
         LoadMeter loadMeter;
         auto nextLoad = std::chrono::steady_clock::now();
         unsigned loadSeq = 0;
+        bool smartStartDone = false;   // the first Start receiving after launch places the channels on the stations found (see below)
         while (!quit) {
             MultiCommand command;
             if (web.takeCommand(command)) {
@@ -350,6 +351,25 @@ int main(int argc, char** argv) {
                                 }
                                 const double ifHz = bestSat * 1e6 - lnb + correction;
                                 if (receiver.setCenterIf(ifHz)) settings.capture.centerIfHz = ifHz;
+                            }
+                            // First start after launch: channel 1 on the beacon, the strongest stations above it (up to three) on channels 2-4 in
+                            // order of frequency; a channel without a station keeps its start-list frequency. Not for a one-channel radio, not for
+                            // the demo, and not when the Auto Monitor starts the radio (it takes over the channels itself).
+                            if (!smartStartDone && !autoAfterStart && !demo && !narrowOnly) {
+                                smartStartDone = true;
+                                const auto slots = receiver.channels();
+                                std::string ignored;
+                                if (!slots.empty()) {
+                                    ChannelConfig beacon = slots[0].config; beacon.satelliteMhz = kBeaconMhz; beacon.symbolRate = kBeaconRate; beacon.standard = 0;
+                                    receiver.configure(slots[0].id, beacon, ignored);
+                                }
+                                const auto& rc = receiver.config();
+                                const double centreMhz = (rc.centerIfHz + rc.lnbHz - rc.correctionHz) / 1e6;
+                                const auto stations = pickStartStations(web.batcFrame(), slots.size() > 1 ? std::min<size_t>(3, slots.size() - 1) : 0, centreMhz, receiver.sampleRate());
+                                for (size_t i = 0; i < stations.size(); ++i) {
+                                    ChannelConfig cfg = slots[1 + i].config; cfg.satelliteMhz = stations[i].mhz; cfg.symbolRate = stations[i].rate; cfg.standard = 0;
+                                    receiver.configure(slots[1 + i].id, cfg, ignored);
+                                }
                             }
                             // every channel slot starts with the capture, on the frequency and symbol rate it has
                             for (const auto& slot : receiver.channels()) {

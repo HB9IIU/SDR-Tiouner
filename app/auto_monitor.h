@@ -80,11 +80,31 @@ inline std::vector<AutoCandidate> detectAutoCarriers(const std::vector<uint16_t>
     std::sort(result.begin(),result.end(),[](auto a,auto b){return a.strength>b.strength;});
     return result;
 }
+// The rules for a station worth decoding, shared by the Auto Monitor and by the start of the receiver page: from 10492 MHz (above the
+// beacon), the centre inside the BATC frame (its last bins are a roll-off), a plateau of at least 60% of the beacon's.
+inline constexpr double kBeaconMhz = 10491.5, kBeaconRate = 1500000, kScanFromMhz = 10492.0, kScanToMhz = 10499.4, kMinBeaconRatio = .6;
+
+// The start of the receiver page: the strongest stations above the beacon in one BATC frame (at most `count`), in order of frequency,
+// and only those that fit in the radio's window (centre `centreMhz`, `sampleRate`). Nothing without the beacon in the frame as the reference.
+inline std::vector<AutoCandidate> pickStartStations(const std::vector<uint16_t>& fft, size_t count, double centreMhz, double sampleRate) {
+    const auto found = detectAutoCarriers(fft);
+    double beacon = 0;
+    for (const auto& c : found) if (std::abs(c.mhz - kBeaconMhz) < .01 && c.rate == kBeaconRate) beacon = c.strength;
+    std::vector<AutoCandidate> stations;
+    if (beacon <= 0) return stations;
+    for (const auto& c : found)
+        if (c.mhz >= kScanFromMhz && c.mhz <= kScanToMhz && c.strength >= kMinBeaconRatio * beacon &&
+            std::abs(c.mhz - centreMhz) * 1e6 + c.rate * 1.35 / 2 <= sampleRate * .49) stations.push_back(c);
+    std::sort(stations.begin(), stations.end(), [](const AutoCandidate& a, const AutoCandidate& b) { return a.strength > b.strength; });
+    if (stations.size() > count) stations.resize(count);
+    std::sort(stations.begin(), stations.end(), [](const AutoCandidate& a, const AutoCandidate& b) { return a.mhz < b.mhz; });
+    return stations;
+}
+
 // The Auto Monitor operator: the first card is the beacon; the band above it is scanned continuously and every
 // new station gets its own card (and decoder). The decoder pool is only limited by the receiver's max_channels.
 struct MonitorCard { unsigned uid=0, channel=0; AutoCandidate carrier{}; bool beacon=false, lost=false; double since=0, lastSeen=0, lastLock=0, lostAt=0; };
 class AutoMonitor {
-    static constexpr double kBeaconMhz=10491.5, kBeaconRate=1500000, kScanFromMhz=10492.0, kScanToMhz=10499.4, kMinBeaconRatio=.6;   // the station's centre must be inside the BATC frame (its last bins are a roll-off)
     static constexpr double kLostShownSeconds=5, kRetryPauseSeconds=10;   // a lost card stays briefly, then goes; its carrier waits before a retry
     std::vector<MonitorCard> cards;
     std::vector<std::pair<double,int>> seen;
