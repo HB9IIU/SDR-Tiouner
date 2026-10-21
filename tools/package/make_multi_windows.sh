@@ -62,7 +62,7 @@ printf '@echo off\r\ncd /d "%%~dp0"\r\n"%%~dp0SDR-Tiouner.exe"\r\n' > "$OUT/Star
 cp "$OUT/multi-receiver.ini" "$OUT/multi-receiver.ini.dev"
 cp multi-receiver.ini "$OUT/multi-receiver.ini"
 sed -i '1s/^# .*/# SDR-Tiouner settings. Frequencies are satellite MHz./' "$OUT/multi-receiver.ini"
-(cd build-windows && rm -f SDR-Tiouner-windows-x64.zip && zip -qr SDR-Tiouner-windows-x64.zip SDR-Tiouner-windows-x64 -x 'SDR-Tiouner-windows-x64/multi-receiver.ini.dev' -x 'SDR-Tiouner-windows-x64/multi-cache/*' -x '*.log' -x '*onair_multi.exe' -x '*SDR-Tiouner-preview.exe')
+(cd build-windows && rm -f SDR-Tiouner-windows-x64.zip && zip -qr SDR-Tiouner-windows-x64.zip SDR-Tiouner-windows-x64 -x 'SDR-Tiouner-windows-x64/multi-receiver.ini.dev' -x 'SDR-Tiouner-windows-x64/multi-cache/*' -x 'SDR-Tiouner-windows-x64/recordings/*' -x '*.log' -x '*onair_multi.exe' -x '*SDR-Tiouner-preview.exe')
 mv -f "$OUT/multi-receiver.ini.dev" "$OUT/multi-receiver.ini"
 sed -i '1s/^# .*/# SDR-Tiouner settings. Frequencies are satellite MHz./' "$OUT/multi-receiver.ini"
 echo "Ready: build-windows/SDR-Tiouner-windows-x64/SDR-Tiouner.exe   (zip: build-windows/SDR-Tiouner-windows-x64.zip)"

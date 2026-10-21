@@ -6,6 +6,22 @@
 using namespace dect2;
 #define CHECK(condition) do { if (!(condition)) { fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#condition); return 1; } } while (0)
 int main() {
+    // A window move and cursor retune can reach the worker in separate revisions.
+    // Failure of the old revision must not put the new centred channel to sleep.
+    {
+        MultiConfig narrow; narrow.sampleRate = 2400000;
+        MultiReceiver rtl(narrow); std::string why;
+        ChannelConfig tuned{10495,333000,0,true}; const auto id = rtl.create(tuned); CHECK(id);
+        for (int i=0;i<100;++i) {
+            const double mhz = i%2 ? 10495 : 10498;
+            CHECK(rtl.setCenterIf((mhz-9750)*1e6));
+            tuned.satelliteMhz = mhz; CHECK(rtl.configure(id,tuned,why));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(120));
+        CHECK(rtl.channels()[0].error.empty());
+        CHECK(rtl.channels()[0].outputRate == 2400000);
+    }
     MultiConfig config; config.maxChannels = 3;
     MultiReceiver receiver(config);
     ChannelConfig first{10491.5,500000,0,true}, second{10496.5,500000,0,true};
@@ -18,6 +34,10 @@ int main() {
     CHECK(!receiver.configure(a,invalid,error));
     invalid = first; invalid.satelliteMhz = 10490.5; invalid.symbolRate = 4000000;
     CHECK(!receiver.configure(a,invalid,error)); // occupied channel crosses the capture edge
+    invalid.enabled = false;
+    CHECK(receiver.configure(a,invalid,error)); // an out-of-window slot must still be stoppable (RTL two-channel limit)
+    CHECK(!receiver.channels()[0].config.enabled);
+    CHECK(receiver.configure(a,first,error));
     CHECK(!receiver.configure(999,first,error));
     auto stream = receiver.subscribe(a); CHECK(stream);
     first.enabled = false; CHECK(receiver.configure(a,first,error));

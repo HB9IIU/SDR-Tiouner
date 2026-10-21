@@ -16,7 +16,7 @@ The GNU General Public License (`LICENSE.txt`) lets anyone charge a fee for a co
 
 Run `Start SDR-Tiouner.cmd` in the package folder (or `SDR-Tiouner.exe`).
 
-The browser opens at `http://127.0.0.1:47321`. Close the other receiver before starting the same SDRplay in SDR-Tiouner. Choose your radio in the Radio window and press **Start receiving** (the gain is automatic). Enter the frequency and symbol rate for each carrier, then press **Start** on each channel. **Retune** and **Stop** affect only their channel. The BATC spectrum is at the top: select a channel below it and click a transmission to tune that channel, with an estimated symbol rate. The received SDR spectrum and waterfall remain below the radio controls. Click the speaker icon on the video you want to hear. **Quit** (top right) exits the program and its helper processes.
+The browser opens at `http://127.0.0.1:47321`. Close the other receiver before starting the same SDRplay in SDR-Tiouner. Choose your radio in the Radio window and press **Start receiving** (the gain is automatic until you change it with the **Gain** slider). The channels of your start list then start searching by themselves. The BATC spectrum is at the top: drag the tab on top of a channel line, or click the spectrum, to move the nearest channel to a transmission, with an estimated symbol rate; the channel retunes by itself. The **RX window** slider in the Local Spectrum header moves the part of the band the radio receives, and **Save for this radio** keeps its position. Every card has a **Magic Eye** that shows the signal quality (MER) at a glance. The received SDR spectrum and waterfall are below the BATC spectrum. Click the speaker icon on the video you want to hear. **Quit** (top right) exits the program and its helper processes.
 
 To exercise two generated RF carriers without touching a radio:
 
@@ -35,10 +35,10 @@ The browser tiles are re-encoded to at most 960x540 H.264 for WebRTC. Next to th
 - Channel *n* goes to `udp://127.0.0.1:19000 + n - 1` (7 TS packets per datagram). The address is shown on the channel card.
 - Open it in VLC (Media > Open Network Stream > `udp://@127.0.0.1:19000`), `ffplay udp://127.0.0.1:19000`, OBS, or record it with `ffmpeg -i udp://127.0.0.1:19000 -c copy out.ts`.
 - `multi-receiver.ini`: `udp_output=1` (0 turns it off), `udp_host=127.0.0.1` (another IPv4 address, such as a PC on the LAN or a multicast group, sends it there), `udp_port_base=19000`.
-- The stream starts when the channel is started and restarts by itself after a retune.
+- The stream starts when the channel runs and restarts by itself after a retune.
 ## Recording
 
-The **Record** button in the menu (on the Receiver and on the Auto Monitor page) writes the original transport stream of every running channel to `.ts` files in the `recordings` folder next to the program. There is one file per channel and tuning, named with the date, the frequency and the name of the station, and VLC plays it. The folder button next to Record opens the folder.
+The **Record** button in the menu (on the Receiver and on the Auto Monitor page) writes the original transport stream of every running channel to `.ts` files in the `recordings` folder next to the program. There is one file per channel and tuning, named with the date, the frequency and the name of the station, and VLC plays it.
 
 - The beacon is not recorded, because it runs all day.
 - Recording stops by itself when less than 1 GB of disk is free, and it never starts by itself.
@@ -87,7 +87,7 @@ Build with `bash tools/package/make_multi_windows.sh`. The unit tests run with `
 
 Useful references: [SDRplay instantaneous bandwidth illustration](https://www.sdrplay.com/docs/Hamcation2024slides.pdf), [MediaMTX browser playback](https://mediamtx.org/docs/usage/read).
 
-The gain is automatic and is not set by hand. It monitors the whole received band and the radio's overload reports, reduces the gain quickly during overload, and raises it slowly with headroom. The receiver spectrum and waterfall are display-only; only the BATC spectrum supports click-to-tune.
+The gain is automatic by default. It monitors the whole received band and the radio's overload reports, reduces the gain quickly during overload, and raises it slowly with headroom. The **Gain** slider in the Local Spectrum header sets it by hand instead (**Auto** returns to automatic gain); a gain set by hand is remembered for that radio and used again at its next start. A red "overload" badge next to the slider means the radio input is overloaded: lower the gain. The receiver spectrum and waterfall are display-only; only the BATC spectrum supports click-to-tune.
 
 Spectrum alignment: both plots use the actual RX centre and sample rate, including frequency calibration. BATC data occupies its true 10490.5–10499.5 MHz interval on that shared scale; blank margins contain no BATC data and cannot be clicked to tune.
 

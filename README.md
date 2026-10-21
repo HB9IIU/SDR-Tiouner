@@ -28,7 +28,7 @@ The pages can also be opened from another PC on the same network, see [LAN_VIEWI
 | PlutoSDR | USB or network. The speed of the link decides how much of the band you get. |
 | FISHBall-PlutoSky (Z7020-AD9361) | Appears in the list as a PlutoSDR (native driver). Over Ethernet it runs at the full 10 Msps without dropping samples, so you get the whole band. Over its USB connection it ran at only about 5 Msps. |
 | LimeSDR Mini | Needs USB 3 for the whole band, and the Microsoft Visual C++ Redistributable (x64), which most PCs already have. |
-| RTL-SDR | Only about 2.4 Msps: one channel, maybe a second one if it is very narrow (low symbol rate) and falls inside the same window. Not the 1.5 MS/s beacon. |
+| RTL-SDR | Only about 2.4 Msps: up to two channels, if both fall inside the same narrow window. Not the 1.5 MS/s beacon. |
 
 If a radio can't deliver 10 Msps you get a narrower window of the band. The page shows which part, and which channels fit in it.
 
@@ -47,7 +47,7 @@ More details are in [MULTI_RECEIVER.md](MULTI_RECEIVER.md) and [AUTO_MONITOR.md]
 
 ## Things you should know
 
-- This is an early version (0.1.x) of a hobby project. I developed and tested it on Windows, mostly with the HackRF. The other radios got less testing. Please tell me what works and what doesn't.
+- This is an early version (0.x) of a hobby project. I developed and tested it on Windows, mostly with the HackRF. The other radios got less testing. Please tell me what works and what doesn't.
 - The Auto Monitor only knows the band as BATC's receiver sees it. A weak station may not lock on your side, and only carriers whose plateau reaches 60% of the beacon's are tried.
 - I have not tried it on Linux or macOS.
 - **Updates.** A few seconds after the start, the program asks GitHub which release is the latest. If yours is older, the menu shows "Update x.y.z available", with a link to the release page. It downloads nothing and sends nothing about you. To switch it off, put `check_updates=0` in `multi-receiver.ini`. To update, extract the new zip into a new folder and copy your old `multi-receiver.ini` into it, so that you keep your radio, your calibration and your settings.
@@ -60,7 +60,7 @@ These are the things I ran into myself:
 - **The radio is not listed.** Unplug it, wait a few seconds and plug it in again, preferably into a port directly on the PC and not through an unpowered hub. Close every other program that may hold the radio: SDRplay and Airspy can only be used by one program at a time. For an SDRplay the SDRplay API must be installed, and then restart SDR-Tiouner.
 - **The radio is listed, but nothing locks and the page says the radio is not delivering samples.** A USB radio sometimes gets stuck, especially after a program was killed instead of closed. Close SDR-Tiouner with the **Close** button on the Receiver page, replug the radio and start again.
 - **"No beacon received".** Nothing at all is locking, so look at the dish, the LNB and the cable. The LNB needs its power (about 18 V on many LNBs) from somewhere: SDR-Tiouner does not switch on a bias-T of the radio.
-- **The beacon locks, then loses lock, then locks again.** Then the signal is just very close to what the decoder needs (SNR around 5 dB). More gain did not help on my setup; the dish and the LNB matter more.
+- **The beacon locks, then loses lock, then locks again.** Then the signal is just very close to what the decoder needs (SNR around 5 dB). Try the Gain slider: a weak signal sometimes needs more gain than Auto picks (watch for the red overload badge). The dish and the LNB matter most.
 - **The pages do not open from another PC.** Run `Enable LAN access.cmd` as administrator, once, on the receiver PC, and make sure the network is set to Private in Windows.
 
 If that does not solve it, please open an issue here (not with the OnAir team) and tell me the version, the radio, what the page says, and the text in the console window.
@@ -88,6 +88,8 @@ To run the tests, build everything with `cmake --build build-windows -j8` and th
 Nothing here would exist without **OnAir**. The receiver, the DVB-S/S2 decoding, the signal processing and the radio drivers come from [adswill](https://github.com/adswill) and the [OnAir contributors](https://github.com/adswill/OnAir/graphs/contributors), and all the credit for that part goes to them. I only built a multi-channel web interface and some packaging on top.
 
 One of those contributors is the well-known **Évariste Courjaud (F5OEO)** of the DATV community. His work in OnAir that this program relies on includes the 8-bit LDPC decoder for DVB-S2, the AVX2 resampler and the PlutoSDR discovery. Thank you, Évariste.
+
+The Magic Eye signal indicator was inspired by [Lynx DATV Receiver by G8YTZ](https://github.com/G8YTZ/lynx-datv-receiver); thank you to its author.
 
 Thanks also to BATC for the wideband spectrum feed, to the authors of the libraries used here (FFmpeg, MediaMTX, Bootstrap, miniaudio, libhackrf, libairspy, librtlsdr, libiio, LimeSuite, libbladeRF), and to SDRplay for their API. The licences of the components are listed in `THIRD-PARTY-NOTICES.txt` in the package.
 

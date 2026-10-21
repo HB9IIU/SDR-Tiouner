@@ -119,6 +119,7 @@ struct Channel {
         blocks.push_back(block); cv.notify_one();
     }
     void run() {
+        uint64_t attemptedRevision = 0;
         try {
             uint64_t applied = 0, sequence = 0;
             double appliedRate = 0;
@@ -128,21 +129,21 @@ struct Channel {
             std::vector<cf32> output;
             double outputRate = 0;
             for (;;) {
-                Block block; ChannelConfig config; uint64_t wanted; bool gap; double correction;
+                Block block; ChannelConfig config; uint64_t wanted; bool gap; double correction, centreIf, lnbHz;
                 { std::unique_lock<std::mutex> lock(mutex);
                   cv.wait_for(lock, std::chrono::milliseconds(100), [&] { return quit || revision != applied || !blocks.empty(); });
                   if (quit) break;
-                  config = status.config; wanted = revision; gap = discontinuity; discontinuity = false; correction = capture.correctionHz;
+                  config = status.config; wanted = revision; gap = discontinuity; discontinuity = false; correction = capture.correctionHz; centreIf = capture.centerIfHz; lnbHz = capture.lnbHz; attemptedRevision = wanted;
                   if (!blocks.empty()) { block = blocks.front(); blocks.pop_front(); } }
                 const double rate = inputRate.load();
                 if (wanted != applied || rate != appliedRate || gap) {
                     // Configure/reset is owned solely by this channel's worker.
                     receiver.configure(0); // drain/stop the old decoder before clearing TS
                     { std::lock_guard<std::mutex> lock(mutex); demux.reset(); status.transport = {}; status.telemetry = {}; }
-                    const double offset = config.satelliteMhz * 1e6 - capture.lnbHz + correction - capture.centerIfHz;
+                    const double offset = config.satelliteMhz * 1e6 - lnbHz + correction - centreIf;
                     if (config.enabled && std::abs(offset) + config.symbolRate * 1.35 / 2 > rate * .49) {
                         // The radio's window moved (a slower radio): the mixer would wrap around and decode another station.
-                        const double centreMhz = (capture.lnbHz + capture.centerIfHz - correction) / 1e6, halfMhz = rate * .49 / 1e6; char text[96];
+                        const double centreMhz = (lnbHz + centreIf - correction) / 1e6, halfMhz = rate * .49 / 1e6; char text[96];
                         std::snprintf(text, sizeof text, "Outside the radio window (%.1f to %.1f MHz)", centreMhz - halfMhz, centreMhz + halfMhz);
                         throw std::runtime_error(text);
                     }
@@ -176,9 +177,9 @@ struct Channel {
                   } }
             }
         } catch (const std::exception& e) {
-            std::lock_guard<std::mutex> lock(mutex); status.error = e.what(); closeStreams();
+            std::lock_guard<std::mutex> lock(mutex); if (revision == attemptedRevision) { status.error = e.what(); closeStreams(); }
         } catch (...) {
-            std::lock_guard<std::mutex> lock(mutex); status.error = "Channel worker failed"; closeStreams();
+            std::lock_guard<std::mutex> lock(mutex); if (revision == attemptedRevision) { status.error = "Channel worker failed"; closeStreams(); }
         }
     }
 };
@@ -211,7 +212,7 @@ struct MultiReceiver::Impl {
         if (!std::isfinite(channel.satelliteMhz) || channel.satelliteMhz < 10490.5 || channel.satelliteMhz > 10499.5 ||
             !std::isfinite(channel.symbolRate) || channel.symbolRate < 25000 || channel.symbolRate > 4000000 ||
             channel.standard < 0 || channel.standard > 2) { why = "Enter a QO-100 frequency and symbol rate from 25 to 4000 kS/s."; return false; }
-        if (std::abs(offset) + channel.symbolRate * 1.35 / 2 > rate.load() * .49) {
+        if (channel.enabled && std::abs(offset) + channel.symbolRate * 1.35 / 2 > rate.load() * .49) {
             why = "The entire channel must fit inside the shared IQ capture."; return false;
         }
         return true;
@@ -281,6 +282,8 @@ bool MultiReceiver::start(const DeviceInfo& device, TuneSettings tune, std::stri
     if (device.maxRateHz > 0 && device.maxRateHz < tune.sampleRate) tune.sampleRate = std::min(device.maxRateHz, device.board == "rtlsdr" ? 2.4e6 : device.maxRateHz);
     tune.bandwidthMhz = 9; tune.basebandFilterHz = p_->config.filterHz > 0 ? p_->config.filterHz : 8e6;
     tune.radio["linklimit"] = "1";   // a radio whose link cannot carry the rate runs at the highest it can (PlutoSDR); the capture is then narrower
+        // The HackRF takes its three stages, not the total: split it now, or the radio starts on its default stages until the gain is next changed
+    if (device.kind == DeviceInfo::HackRF) { const auto s = gainForTotal((int)std::clamp(tune.gainDb, 0.0, 100.0)); tune.lnaDb = s.lna; tune.vgaDb = s.vga; tune.ampOn = s.amp; }
     p_->ring.clear(); p_->ring.resetDropped(); p_->source = makeSource(device);
     if (!p_->source || !p_->source->start(tune, p_->ring, error)) { p_->source.reset(); return false; }
     p_->rate = p_->source->sampleRate();

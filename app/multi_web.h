@@ -4,12 +4,13 @@
 #include <string>
 
 struct MultiCommand {
-    enum Action { RadioStart, RadioStop, RadioRefresh, ChannelCreate, ChannelSet, GainSet, UdpSet, Calibrate, AlignCapture, Shutdown, AutoStart, AutoStop, RecordSet, RecordOpen } action;
+    enum Action { RadioStart, RadioStop, RadioRefresh, ChannelCreate, ChannelSet, GainSet, UdpSet, Calibrate, AlignCapture, PositionCapture, SaveCapturePosition, CalibrationPromptSeen, Shutdown, AutoStart, AutoStop, RecordSet, RecordOpen } action;
     int device = -1;
     unsigned id = 0;
     double gain = 30;
     bool automaticGain = true;
     dect2::ChannelConfig channel;
+    double centreMhz = 10495;         // PositionCapture: satellite centre of the RX window
     int align = 1;                   // AlignCapture: 0 left, 1 centre, 2 right
     bool udpEnabled = true;          // UdpSet: where the untouched TS of every running channel goes
     std::string udpHost = "127.0.0.1";

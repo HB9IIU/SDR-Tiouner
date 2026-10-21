@@ -3,6 +3,7 @@
 #include "multi_web_page.h"
 #include "auto_monitor_page.h"
 #include "playback_page.h"
+#include "magic_eye.h"
 #include "multi_bootstrap_css.h"
 #include "batc_ws.h"
 #include "netcompat.h"
@@ -109,10 +110,12 @@ struct MultiWeb::Impl {
         std::ostringstream out; out.precision(12);
         const auto config = receiver.config();
         const auto gainState = receiver.gainStatus();
+        bool rtlRadio = false;
+        { std::lock_guard<std::mutex> lock(mutex); rtlRadio = selected >= 0 && selected < (int)radios.size() && radios[selected].board == "rtlsdr"; }
         out << "{\"version\":\"" << SDR_TIOUNER_VERSION << "\",\"beta\":" << (SDR_TIOUNER_BETA ? "true" : "false") << ",\"running\":" << (receiver.running() ? "true" : "false")
             << ",\"sampleRate\":" << receiver.sampleRate() << ",\"centerMhz\":" << (config.centerIfHz + config.lnbHz - config.correctionHz) / 1e6 << ",\"alignTargets\":[" << receiver.alignTargetsMhz()[0] << ","
               << receiver.alignTargetsMhz()[1] << "," << receiver.alignTargetsMhz()[2] << "]"
-            << ",\"maxChannels\":" << config.maxChannels << ",\"sourceDrops\":" << receiver.sourceDrops()
+            << ",\"rtlRadio\":" << (rtlRadio ? "true" : "false") << ",\"maxChannels\":" << (rtlRadio ? std::min<unsigned>(2,config.maxChannels) : config.maxChannels) << ",\"sourceDrops\":" << receiver.sourceDrops()
             << ",\"sourceError\":\"" << escape(receiver.sourceError()) << "\",\"channels\":[";
         auto channels = receiver.channels();
         std::map<unsigned, std::string> publisherCopy, udpCopy;
@@ -229,6 +232,20 @@ struct MultiWeb::Impl {
                 double gain = number("gain");
                 if (!std::isfinite(gain) || gain < 0 || gain > 100) { reply(400, "text/plain", "Gain must be from 0 to 100 dB"); return; }
                 command.action = MultiCommand::RadioStart; command.device = (int)device; command.gain = gain;
+            } else if (path == "/api/calibrate/prompt-seen") {
+                const double device = number("device");
+                if (!std::isfinite(device) || device != std::floor(device) || device < 0) { reply(400, "text/plain", "Invalid radio"); return; }
+                { std::lock_guard<std::mutex> lock(mutex); if (device != selected) { reply(409, "text/plain", "Radio changed"); return; } }
+                command.action = MultiCommand::CalibrationPromptSeen; command.device = (int)device;
+            } else if (path == "/api/capture/save-position") {
+                if (!receiver.running()) { reply(409, "text/plain", "Start receiving before saving the RX window"); return; }
+                command.action = MultiCommand::SaveCapturePosition;
+            } else if (path == "/api/capture/position") {
+                const double centre = number("centre");
+                const auto targets = receiver.alignTargetsMhz();
+                const double lo = std::min(targets[0], targets[2]), hi = std::max(targets[0], targets[2]);
+                if (!std::isfinite(centre) || centre < lo - 0.000001 || centre > hi + 0.000001) { reply(400, "text/plain", "RX window centre is outside the available range"); return; }
+                command.action = MultiCommand::PositionCapture; command.centreMhz = centre;
             } else if (path == "/api/capture/align") {
                 const auto mode = number("mode");
                 if (mode != 0 && mode != 1 && mode != 2) { reply(400, "text/plain", "Align must be left, centre or right"); return; }
@@ -282,6 +299,7 @@ struct MultiWeb::Impl {
             reply(202, "application/json", "{\"accepted\":true}"); return;
         }
         if (method != "GET") { reply(405, "text/plain", "GET or POST required"); return; }
+        if(path=="/assets/magic-eye.js") {reply(200,"application/javascript",magicEyeScript);return;}
         if(path=="/assets/playback.js") {reply(200,"application/javascript",playbackScript);return;}
         if (path == "/monitor") {
             std::string page = autoMonitorPage; auto offset = page.find("__CONTROL_TOKEN__"); page.replace(offset,17,token);

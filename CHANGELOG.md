@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 (2026-10-21)
+
+Manual gain, a signal-quality indicator, and finer control of the RX window.
+
+- **Gain slider:** a Gain slider with an Auto button sits in the Local Spectrum header, so you can set the gain by hand without opening the Radio window. Useful when automatic gain settles too low for a weak signal.
+- **HackRF starts at the gain shown.** It used to start on its default gain stages until the gain was changed; it now starts at the gain you see, in manual and in automatic mode.
+- **Gain remembered per radio:** a gain set by hand is saved for that radio and restored at the next start. Radios you never adjusted stay on automatic gain.
+- **RX window slider:** replaces the three position buttons on the Receiver page. Move the window in 10 kHz steps, preview it on the BATC spectrum, and release to retune. A Centre button returns it to 10495.000 MHz.
+- **Save for this radio:** remembers the RX window position of each radio and restores it when receiving starts, including in Auto Monitor.
+- **Magic Eye:** every Receiver and Auto Monitor card has a green phosphor indicator driven by the real MER and DVB lock. It moves smoothly and dims quickly when the signal is lost. Inspired by [Lynx DATV Receiver by G8YTZ](https://github.com/G8YTZ/lynx-datv-receiver).
+- **RF overload warning:** a red "overload" badge appears next to the Gain slider when the radio reports an RF overload, and in manual mode a message tells you to lower the gain.
+- **RTL-SDR:** the Receiver page shows two channel slots. Startup picks up to two stations inside the narrow window and avoids the beacon, which an RTL-SDR cannot receive.
+- Various cosmetic improvements throughout the interface.
+
 ## 0.1.2 (2026-10-17)
 
 Smarter start, clearer messages, and a way to see where picture problems come from.

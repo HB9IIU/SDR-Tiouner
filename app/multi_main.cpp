@@ -43,6 +43,9 @@ struct Settings {
     // The frequency correction measured on the beacon, per radio (its serial): what that radio plus the LNB are off by
     struct Calibration { std::string key; double correctionHz = 0; long long when = 0; };
     std::vector<Calibration> calibrations;
+    std::map<std::string,bool> calibrationPromptSeen;
+    std::map<std::string,double> rxPositions; // preferred satellite centre MHz, keyed by radio identity
+    std::map<std::string,double> manualGains;  // gain set by hand (dB), keyed by radio identity; a radio without an entry runs on automatic gain
     double legacyCorrection = 0;   // correction_hz of the file: for a radio that was never calibrated
     std::string lastRadio;         // the radio (as listed) of the last capture: selected again at the next start
     double gain = 30;
@@ -80,6 +83,20 @@ Settings load(const fs::path& path) {
             const auto a = value.find(","), b = value.rfind(",");
             if (a == std::string::npos || b == a) throw std::runtime_error("calibration=radio,correction_Hz,unix_time");
             settings.calibrations.push_back({trim(value.substr(0, a)), number(trim(value.substr(a + 1, b - a - 1))), (long long)number(trim(value.substr(b + 1)))});
+        } else if (key == "calibration_prompt_seen") {
+            settings.calibrationPromptSeen[value] = true;
+        } else if (key == "rx_position") {
+            const auto split = value.rfind(',');
+            if (split == std::string::npos) throw std::runtime_error("rx_position=radio,centre_MHz");
+            const double centre = number(trim(value.substr(split + 1)));
+            if (centre < 10490.5 || centre > 10499.5) throw std::runtime_error("Invalid saved RX window centre");
+            settings.rxPositions[trim(value.substr(0, split))] = centre;
+        } else if (key == "manual_gain") {
+            const auto split = value.rfind(',');
+            if (split == std::string::npos) throw std::runtime_error("manual_gain=radio,gain_dB");
+            const double manual = number(trim(value.substr(split + 1)));
+            if (manual < 0 || manual > 100) throw std::runtime_error("Invalid saved manual gain");
+            settings.manualGains[trim(value.substr(0, split))] = manual;
         } else if (key == "radio") {
             settings.lastRadio = value;
         } else if (key == "channel") {
@@ -110,7 +127,7 @@ Settings load(const fs::path& path) {
         }
     }
     settings.legacyCorrection = settings.capture.correctionHz;
-    // Every start has the capture centred on the middle of the band (10495.0 MHz); LEFT / RIGHT on the page move it for the session.
+    // Default for radios without an explicitly saved RX window position.
     settings.capture.centerIfHz = 10495.0e6 - settings.capture.lnbHz;
     // a settings file of the two-channel version: the slots up to the four of this version are added (stopped, at free places of the band)
     if (settings.capture.maxChannels == 2) settings.capture.maxChannels = 4;
@@ -130,6 +147,9 @@ void save(const fs::path& path, const Settings& settings) {
         << "\ncheck_updates=" << (settings.checkUpdates ? 1 : 0) << "\nudp_output=" << (settings.udpOutput ? 1 : 0) << "\nudp_host=" << settings.udpHost << "\nudp_port_base=" << settings.udpBase << '\n';
     if (!settings.lastRadio.empty()) out << "radio=" << settings.lastRadio << '\n';
     for (const auto& c : settings.calibrations) out << "calibration=" << c.key << ',' << c.correctionHz << ',' << c.when << '\n';
+    for (const auto& entry : settings.calibrationPromptSeen) if (entry.second) out << "calibration_prompt_seen=" << entry.first << '\n';
+    for (const auto& position : settings.rxPositions) out << "rx_position=" << position.first << ',' << position.second << '\n';
+    for (const auto& gain : settings.manualGains) out << "manual_gain=" << gain.first << ',' << gain.second << '\n';
     // the start list of the file stays as it is: at every start the channels come back on it, whatever was tuned while the program ran
     for (const auto& channel : settings.channels) out << "channel=" << channel.satelliteMhz << ',' << channel.symbolRate / 1000 << ',' << channel.standard << '\n';
     if (!out) throw std::runtime_error("Cannot save " + path.string());
@@ -181,7 +201,7 @@ double narrowWindowIfHz(double satMhz, double symbolRateHz, double rateHz, doubl
 
 // Why a radio runs below the full band, in words the user can act on (the link was measured, or the radio is simply narrow)
 // A notice is "title\ntext": the page shows the first line as the title.
-static const char* kPositionHint = "Choose which part you see with the three buttons on the Local Spectrum panel.";
+static const char* kPositionHint = "Choose which part you see with the RX window slider on the Local Spectrum panel.";
 std::string slowBandNotice(const DeviceInfo& d, double rateHz) {
     char b[400];
     const double mhz = rateHz / 1e6 * 0.98;
@@ -293,6 +313,9 @@ int main(int argc, char** argv) {
         bool recording = false;    // the Record button: not remembered, a new start never begins by recording
         const fs::path recordDir = executable / "recordings";
         CalibrationRun calibration;
+        auto beaconStableSince = std::chrono::steady_clock::time_point{};
+        int beaconRadio = -1;
+        uint64_t beaconRevision = 0;
         LoadMeter loadMeter;
         auto nextLoad = std::chrono::steady_clock::now();
         unsigned loadSeq = 0;
@@ -308,7 +331,7 @@ int main(int argc, char** argv) {
                     command.action = MultiCommand::RadioStart; command.device = selected; command.gain = settings.gain; autoAfterStart = true;
                 }
                 if (autoMonitor.enabled && command.action != MultiCommand::AutoStart && command.action != MultiCommand::AutoStop &&
-                    command.action != MultiCommand::GainSet && command.action != MultiCommand::UdpSet && command.action != MultiCommand::RecordSet && command.action != MultiCommand::RecordOpen) autoMonitor.stop(receiver);
+                    command.action != MultiCommand::CalibrationPromptSeen && command.action != MultiCommand::SaveCapturePosition && command.action != MultiCommand::GainSet && command.action != MultiCommand::UdpSet && command.action != MultiCommand::RecordSet && command.action != MultiCommand::RecordOpen) autoMonitor.stop(receiver);
                 if (command.action == MultiCommand::AutoStart) {
                     if (calibration.phase) error = "Wait for calibration to finish";
                     else autoMonitor.start(receiver);
@@ -327,15 +350,24 @@ int main(int argc, char** argv) {
                             TuneSettings tune; tune.gainDb = command.gain; tune.biasTee = false;
                             // Automatic gain starts in the middle of this radio's own range (Airspy 0-21, PlutoSDR 0-73, SDRplay/HackRF 0-100) and
                             // finds its level from there: the page no longer asks for a number.
+                            // a radio whose gain was set by hand comes back on that gain, any other on automatic gain
+                            const auto savedGain = settings.manualGains.find(radioKey(radios[selected]));
+                            settings.automaticGain = savedGain == settings.manualGains.end();
+                            if (!settings.automaticGain) { tune.gainDb = savedGain->second; settings.gain = savedGain->second; }
                             if (settings.automaticGain) {
                                 const auto& d = radios[selected];
                                 const double lo = d.isGeneric() ? d.gainMinDb : 0, hi = d.isGeneric() && d.gainMaxDb > 0 ? d.gainMaxDb : 100;
                                 tune.gainDb = std::round(lo + 0.5 * (hi - lo));
                                 settings.gain = tune.gainDb;
                             }
+                            receiver.setGain(settings.automaticGain, settings.gain);
                             // the correction measured on this radio, or the one of the file for a radio never calibrated
                             const auto* known = findCalibration(settings, radioKey(radios[selected]));
                             receiver.setCorrection(known ? known->correctionHz : settings.legacyCorrection);
+                            const auto savedPosition = settings.rxPositions.find(radioKey(radios[selected]));
+                            const double startCentre = savedPosition != settings.rxPositions.end() ? savedPosition->second : 10495.0;
+                            const double startIf = startCentre * 1e6 - settings.capture.lnbHz + receiver.config().correctionHz;
+                            receiver.setCenterIf(startIf); settings.capture.centerIfHz = startIf;
                             calibration.failure.clear();
                             // The LimeSDR takes its time (it is calibrated and its USB link measured): say so before the page waits
                             if (radios[selected].board == "lime")
@@ -349,7 +381,20 @@ int main(int argc, char** argv) {
                             // narrower, so the position is chosen for the most channels that fit (left, centre or right of the band).
                             const double actualRate = receiver.sampleRate();
                             const auto slots = receiver.channels();
-                            if (actualRate > 0 && actualRate < 3e6 && !slots.empty()) {
+                            const bool rtlRadio = radios[selected].board == "rtlsdr";
+                            if (rtlRadio && !slots.empty()) {
+                                const auto saved = settings.rxPositions.find(radioKey(radios[selected]));
+                                const double centre = saved != settings.rxPositions.end() ? saved->second : 10495.0;
+                                const double ifHz = centre * 1e6 - settings.capture.lnbHz + receiver.config().correctionHz;
+                                if (receiver.setCenterIf(ifHz)) settings.capture.centerIfHz = ifHz;
+                                const auto stations = pickStartStations(web.batcFrame(), std::min<size_t>(2, slots.size()), centre, actualRate);
+                                for (size_t i = 0; i < slots.size() && i < 2; ++i) {
+                                    ChannelConfig cfg{centre + (i == 0 ? -.3 : .3),333000,0,true};
+                                    if (i < stations.size()) { cfg.satelliteMhz = stations[i].mhz; cfg.symbolRate = stations[i].rate; }
+                                    std::string ignored; receiver.configure(slots[i].id,cfg,ignored);
+                                }
+                                web.setNotice("RTL-SDR: two channel slots\nUse the RX window slider to explore the band.\nBoth stations must fit inside the same narrow window.\nDrag a channel marker to tune; the window centres on that channel.\nThe 1.5 MS/s beacon is not supported.");
+                            } else if (actualRate > 0 && actualRate < 3e6 && !slots.empty()) {
                                 // A very narrow radio (an RTL-SDR, 2.4 Msps): one channel. The window is put on channel 1, the others stay stopped
                                 // (a card's Start brings one back if it falls inside the window).
                                 double off = 0;
@@ -382,10 +427,16 @@ int main(int argc, char** argv) {
                                 const double ifHz = bestSat * 1e6 - lnb + correction;
                                 if (receiver.setCenterIf(ifHz)) settings.capture.centerIfHz = ifHz;
                             }
+                            // A saved preference takes precedence over automatic window placement, except for a one-channel radio.
+                            const auto savedPosition = settings.rxPositions.find(radioKey(radios[selected]));
+                            if (!narrowOnly && savedPosition != settings.rxPositions.end()) {
+                                const double ifHz = savedPosition->second * 1e6 - settings.capture.lnbHz + receiver.config().correctionHz;
+                                if (receiver.setCenterIf(ifHz)) settings.capture.centerIfHz = ifHz;
+                            }
                             // First start after launch: channel 1 on the beacon, the strongest stations above it (up to three) on channels 2-4 in
                             // order of frequency; a channel without a station keeps its start-list frequency. Not for a one-channel radio, not for
                             // the demo, and not when the Auto Monitor starts the radio (it takes over the channels itself).
-                            if (!smartStartDone && !autoAfterStart && !demo && !narrowOnly) {
+                            if (!smartStartDone && !autoAfterStart && !demo && !narrowOnly && !rtlRadio) {
                                 smartStartDone = true;
                                 const auto slots = receiver.channels();
                                 std::string ignored;
@@ -402,14 +453,15 @@ int main(int argc, char** argv) {
                                 }
                             }
                             // every channel slot starts with the capture, on the frequency and symbol rate it has
+                            size_t slotIndex = 0;
                             for (const auto& slot : receiver.channels()) {
-                                ChannelConfig cfg = slot.config; cfg.enabled = !narrowOnly || slot.id == narrowOnly; std::string ignored;
+                                ChannelConfig cfg = slot.config; cfg.enabled = rtlRadio ? slotIndex++ < 2 : (!narrowOnly || slot.id == narrowOnly); std::string ignored;
                                 receiver.configure(slot.id, cfg, ignored);
                             }
                             persist();
                             {
                                 char text[220];
-                                if (receiver.sampleRate() < 3e6) std::snprintf(text, sizeof text, "Capture running at %.1f Msps: %.1f to %.1f MHz. The window follows the channel you start.",
+                                if (receiver.sampleRate() < 3e6) std::snprintf(text, sizeof text, "Capture running at %.1f Msps: %.1f to %.1f MHz. Move the RX window with the slider; channel tuning can reposition it.",
                                     receiver.sampleRate() / 1e6, receiver.config().centerIfHz / 1e6 + settings.capture.lnbHz / 1e6 - receiver.sampleRate() / 2e6, receiver.config().centerIfHz / 1e6 + settings.capture.lnbHz / 1e6 + receiver.sampleRate() / 2e6);
                                 else if (receiver.sampleRate() < 9.5e6) std::snprintf(text, sizeof text, "Capture running at %.1f Msps (the most this radio can do here): %.1f to %.1f MHz. Channels outside it cannot lock; use the position buttons.",
                                     receiver.sampleRate() / 1e6, receiver.config().centerIfHz / 1e6 + settings.capture.lnbHz / 1e6 - receiver.sampleRate() / 2e6, receiver.config().centerIfHz / 1e6 + settings.capture.lnbHz / 1e6 + receiver.sampleRate() / 2e6);
@@ -420,24 +472,46 @@ int main(int argc, char** argv) {
                     }
                 } else if (command.action == MultiCommand::GainSet) {
                     settings.automaticGain = command.automaticGain; settings.gain = command.gain;
+                    if (selected >= 0 && selected < (int)radios.size()) {   // remembered for this radio: by hand, or back to automatic
+                        if (settings.automaticGain) settings.manualGains.erase(radioKey(radios[selected]));
+                        else settings.manualGains[radioKey(radios[selected])] = settings.gain;
+                    }
                     receiver.setGain(settings.automaticGain,settings.gain); persist();
                     web.setMessage(settings.automaticGain ? "Automatic gain enabled for the shared radio" : "Manual gain selected");
-                } else if (command.action == MultiCommand::AlignCapture) {
+                } else if (command.action == MultiCommand::CalibrationPromptSeen) {
+                    if (command.device == selected && selected >= 0 && selected < (int)radios.size()) {
+                        const auto key = radioKey(radios[selected]);
+                        settings.calibrationPromptSeen[key] = true;
+                        persist();
+                    }
+                } else if (command.action == MultiCommand::SaveCapturePosition) {
+                    if (!receiver.running() || selected < 0 || selected >= (int)radios.size()) error = "Start receiving before saving the RX window";
+                    else {
+                        const auto& capture = receiver.config();
+                        const double centre = (capture.centerIfHz + capture.lnbHz - capture.correctionHz) / 1e6;
+                        auto positions = settings.rxPositions;
+                        settings.rxPositions[radioKey(radios[selected])] = centre;
+                        try { persist(); } catch (...) { settings.rxPositions = std::move(positions); throw; }
+                        char text[160]; std::snprintf(text, sizeof text, "RX window %.3f MHz saved for this radio", centre);
+                        web.setMessage(text);
+                    }
+                } else if (command.action == MultiCommand::AlignCapture || command.action == MultiCommand::PositionCapture) {
                     // left / centre / right of the band for the window the radio really runs (receiver.alignTargetsMhz); the correction moves the
                     // real window, so it is added to the IF that is set
                     const auto targets = receiver.alignTargetsMhz();
-                    const double satMhz = targets[command.align < 0 ? 1 : command.align > 2 ? 2 : command.align];
+                    const double satMhz = command.action == MultiCommand::PositionCapture ? command.centreMhz : targets[command.align < 0 ? 1 : command.align > 2 ? 2 : command.align];
                     const double halfMhz = (receiver.running() && receiver.sampleRate() > 0 ? receiver.sampleRate() : settings.capture.sampleRate) / 2e6;
                     const double ifHz = satMhz * 1e6 - settings.capture.lnbHz + receiver.config().correctionHz;
                     if (!receiver.setCenterIf(ifHz)) error = "That capture centre is not possible";
                     else {
                         settings.capture.centerIfHz = ifHz; persist();
                         char range[96]; std::snprintf(range, sizeof range, "%.1f to %.1f MHz", satMhz - halfMhz, satMhz + halfMhz);
-                        web.setMessage(std::string("Capture aligned ") + (command.align == 0 ? "left" : command.align == 2 ? "right" : "to the centre") + ": " + range);
+                        web.setMessage(std::string("RX window: ") + range);
                     }
                 } else if (command.action == MultiCommand::Calibrate) {
                     const auto list = receiver.channels();
                     if (!receiver.running()) error = "Start receiving first";
+                    else if (selected >= 0 && selected < (int)radios.size() && radios[selected].board == "rtlsdr") error = "Beacon calibration is unavailable for RTL-SDR: the capture window is too narrow for the 1.5 MS/s beacon";
                     else if (calibration.phase) error = "The calibration is already running";
                     else if (list.empty()) error = "There is no channel to calibrate with";
                     else {
@@ -478,13 +552,14 @@ int main(int argc, char** argv) {
                         // a running channel that no longer fits the moved window is stopped
                         const auto now = receiver.channels();
                         if (receiver.running() && receiver.sampleRate() > 0 && receiver.sampleRate() < 3e6 && command.channel.enabled) {
-                            const double ifHz = narrowWindowIfHz(command.channel.satelliteMhz, command.channel.symbolRate, receiver.sampleRate(),
-                                                                 settings.capture.lnbHz, receiver.config().correctionHz);
+                            // Cursor tuning centres a narrow capture symmetrically on the chosen carrier.
+                            // The RX window slider can subsequently offset it without moving the channel.
+                            const double ifHz = command.channel.satelliteMhz * 1e6 - settings.capture.lnbHz + receiver.config().correctionHz;
                             if (receiver.setCenterIf(ifHz)) {
                                 settings.capture.centerIfHz = ifHz;
                                 const double centreMhz = (ifHz - receiver.config().correctionHz + settings.capture.lnbHz) / 1e6;
                                 for (const auto& other : now) {
-                                    if (other.id == command.id || !other.config.enabled) continue;
+                                    if (radios[selected].board == "rtlsdr" || other.id == command.id || !other.config.enabled) continue;
                                     if (std::abs(other.config.satelliteMhz - centreMhz) * 1e6 + other.config.symbolRate * 1.35 / 2 > receiver.sampleRate() * .49) {
                                         ChannelConfig off = other.config; off.enabled = false; std::string ignored;
                                         receiver.configure(other.id, off, ignored);
@@ -533,7 +608,7 @@ int main(int argc, char** argv) {
                 if (!found || !receiver.running()) { done = true; why = "Capture stopped during the calibration."; }
                 else if (calibration.phase == 1) {
                     if (locked) { calibration.phase = 2; calibration.since = now; calibration.sum = 0; calibration.n = 0; calibration.seq = tel.seq; }
-                    else if (elapsed > 30) { done = true; why = "The beacon at 10491.500 MHz was not found. Check the antenna and the gain, then try again."; }
+                    else if (elapsed > 30) { done = true; why = "The beacon could not lock. Try moving the RX window to improve reception, then retry."; }
                 } else {
                     if (locked && tel.seq != calibration.seq) { calibration.seq = tel.seq; calibration.sum += tel.cfoHz; ++calibration.n; }
                     if (elapsed >= 5) {
@@ -572,7 +647,25 @@ int main(int argc, char** argv) {
                 else if (!calibration.failure.empty()) o << "{\"state\":\"failed\",\"message\":\"" << calibration.failure << "\"}";
                 else if (known) o << "{\"state\":\"ok\",\"correctionHz\":" << known->correctionHz << ",\"when\":" << known->when << "}";
                 else o << "{\"state\":\"none\"}";
-                web.setCalibration(o.str());
+                bool prompt = false;
+                const bool eligible = receiver.running() && !calibration.phase && !known && selected >= 0 && selected < (int)radios.size() &&
+                    radios[selected].board != "rtlsdr" && !settings.calibrationPromptSeen[radioKey(radios[selected])];
+                const ChannelStatus* beacon = nullptr;
+                const auto channels = receiver.channels();
+                if (eligible) for (const auto& channel : channels)
+                    if (channel.config.enabled && std::abs(channel.config.satelliteMhz - 10491.5) < .01 && std::abs(channel.config.symbolRate - 1500000) < 1000 &&
+                        channel.telemetry.tsLock && channel.packetAgeSeconds >= 0 && channel.packetAgeSeconds < 1) { beacon = &channel; break; }
+                const auto now = std::chrono::steady_clock::now();
+                if (!beacon) { beaconStableSince = {}; beaconRadio = -1; }
+                else {
+                    if (beaconRadio != selected || beaconRevision != beacon->revision || beaconStableSince == std::chrono::steady_clock::time_point{}) {
+                        beaconStableSince = now; beaconRadio = selected; beaconRevision = beacon->revision;
+                    }
+                    prompt = now - beaconStableSince >= std::chrono::seconds(5);
+                }
+                auto json = o.str(); json.pop_back();
+                json += std::string(",\"prompt\":") + (prompt ? "true" : "false") + "}";
+                web.setCalibration(json);
             }
             if (std::chrono::steady_clock::now() >= nextLoad) {   // once a second
                 web.setLoad(LoadMeter::json(loadMeter.sample(), ++loadSeq));
